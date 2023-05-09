@@ -30,8 +30,6 @@
 	</parent>
 	<artifactId>ignite-runner</artifactId>
 
-	<url>https://ignite.apache.org</url>
-
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
