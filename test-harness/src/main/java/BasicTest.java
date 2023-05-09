@@ -14,9 +14,9 @@ public class BasicTest {
 		// Register JDBC driver.
 		Class.forName("org.apache.ignite.IgniteJdbcThinDriver");
 
-		try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://127.0.0.1")) {
-			int populationCount = Integer.parseInt(args[0]);
-			int testIterations = Integer.parseInt(args[1]);
+		try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
+			int populationCount = Integer.parseInt(args[1]);
+			int testIterations = Integer.parseInt(args[2]);
 			create(conn);
 			populate(conn, populationCount);
 			test(conn, testIterations);
