@@ -14,6 +14,7 @@ java_args="$java_args -DIGNITE_QUIET=true -DIGNITE_UPDATE_NOTIFIER=false -DIGNIT
 
 start_class="org.apache.ignite.startup.cmdline.CommandLineStartup"
 config="./config/playground-config.xml"
+modules=":ignite-core,:ignite-calcite,:ignite-indexing,:ignite-spring"
 
 if [[ $IGNITE_ARGS != "" ]]; then
         java_args="$java_args $IGNITE_ARGS"
@@ -33,14 +34,19 @@ printf "\tConfig: $config\n"
 printf "\tExtra Args: $IGNITE_ARGS\n"
 printf "\tJava Version: $(java --version | head -n 1)\n"
 
-export MAVEN_OPTS="$java_args"
-
 cp_file=$(mktemp)
 logfile="logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log"
-./mvnw -pl :ignite-runner compile dependency:build-classpath -Dmdep.outputFile="$cp_file"
 
-export CLASSPATH=$(cat $cp_file)
+# Compile the modules
+./mvnw -pl $modules compile
+
+# Generate the classpath
+./mvnw -pl :ignite-runner dependency:build-classpath -Dmdep.outputFile="$cp_file"
+
+# Export the classpath
+export CLASSPATH=$(find . -name classes -type d | tr "\n" ":")$(cat $cp_file | tr ":" "\n" | grep -v "ignite.*2\.16" | tr "\n" ":")
 rm $cp_file
 
+# Run it
 java $java_args $start_class $config 2>&1 | tee $logfile
 #./mvnw -e -pl :ignite-core,:ignite-spring,:ignite-indexing,:ignite-calcite compile exec:java -Dexec.mainClass="$start_class" -Dexec.args="$config" 2>&1 | tee logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log

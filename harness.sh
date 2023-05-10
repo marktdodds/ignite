@@ -25,5 +25,5 @@ rm $cp_file
 
 start_class=$test
 echo $CLASSPATH
-java $java_args $start_class $config 2>&1
+java $java_args $start_class $config
 #./mvnw -e -pl :ignite-core,:ignite-spring,:ignite-indexing,:ignite-calcite compile exec:java -Dexec.mainClass="$start_class" -Dexec.args="$config" 2>&1 | tee logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log
