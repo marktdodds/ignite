@@ -1,6 +1,10 @@
 package tests;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.logging.Logger;
@@ -54,8 +58,8 @@ public class BasicTest {
 			b.addBatch();
 			if (i % 500 == 0) System.out.println("Inserted " + i);
 		}
-		a.executeLargeBatch();
-		b.executeLargeBatch();
+		a.executeBatch();
+		b.executeBatch();
 	}
 
 	public static void test(Connection conn, int count) throws SQLException {
