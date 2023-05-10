@@ -318,7 +318,7 @@ public final class CommandLineStartup {
      * @param args Command line arguments.
      */
     public static void main(String[] args) {
-        X.println("Ignite Research Edition...");
+        X.println("Ignite Research Edition (Mark Dodds)...");
         if (!QUITE) {
             X.println("Ignite Command Line Startup, ver. " + ACK_VER_STR);
             X.println(COPYRIGHT);
