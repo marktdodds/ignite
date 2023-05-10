@@ -51,12 +51,12 @@ public class BasicTest {
 
 		for (int i = 0; i < count; i++) {
 			a.setInt(1, i);
-			a.setInt(2, (int) Math.round(Math.random() * count));
+			a.setInt(2, (int) Math.round(Math.random() * 1000));
 			a.addBatch();
 			b.setInt(1, i + count);
-			b.setInt(2, (int) Math.round(Math.random() * count));
+			b.setInt(2, (int) Math.round(Math.random() * 1000));
 			b.addBatch();
-			if (i % 1000 == 0) {
+			if (i % 10000 == 0) {
 				a.executeBatch();
 				a.clearBatch();
 				b.executeBatch();
@@ -78,10 +78,10 @@ public class BasicTest {
 			while (result.next()) {
 				count++;
 			}
-			System.out.format("[Test %s] Result count %s; Duration %s", i, resultCount, msDuration);
+			System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i, count, resultCount, msDuration);
 			durations.add(msDuration);
 		}
-		System.out.format("Tests completed. Average duration: %s", durations.stream().mapToLong(Long::longValue).average());
+		System.out.format("Tests completed. Average duration: %s\n", durations.stream().mapToLong(Long::longValue).average());
 	}
 
 }
