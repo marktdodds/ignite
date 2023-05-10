@@ -29,7 +29,6 @@
 				<property name="localAddress" value="127.0.0.1"/>
 				<property name="ipFinder">
 					<bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder">
-<!--						<property name="multicastGroup" value="127.0.0.1"/>-->
 						<!-- list of static IP addresses-->
 						<property name="addresses">
 							<list>
@@ -39,29 +38,6 @@
 						</property>
 					</bean>
 				</property>
-				<!--				<property name="ipFinder">-->
-				<!--					<bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder">-->
-				<!--						<property name="addresses">-->
-				<!--							<list>-->
-				<!--								&lt;!&ndash;-->
-				<!--								  Explicitly specifying address of a local node to let it start and-->
-				<!--								  operate normally even if there is no more nodes in the cluster.-->
-				<!--								  You can also optionally specify an individual port or port range.-->
-				<!--								  &ndash;&gt;-->
-				<!--								<value>127.0.0.1</value>-->
-				<!--								<value>tem40</value>-->
-				<!--								<value>tem41</value>-->
-				<!--								<value>tem42</value>-->
-				<!--								<value>tem43</value>-->
-				<!--								<value>tem44</value>-->
-				<!--								<value>tem45</value>-->
-				<!--								<value>tem46</value>-->
-				<!--								<value>tem47</value>-->
-				<!--								<value>tem48</value>-->
-				<!--							</list>-->
-				<!--						</property>-->
-				<!--					</bean>-->
-				<!--				</property>-->
 			</bean>
 		</property>
 
