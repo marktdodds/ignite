@@ -20,7 +20,7 @@ printf "\n\tJava Version: $(java --version | head -n 1)\n"
 cp_file=$(mktemp)
 ./mvnw -pl :test-harness compile dependency:build-classpath -Dmdep.outputFile="$cp_file"
 
-export CLASSPATH=$(cat $cp_file)
+export CLASSPATH=$(find test-harness -name classes -type d | tr "\n" ":")$(cat $cp_file)
 rm $cp_file
 
 start_class=$test
