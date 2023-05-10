@@ -34,7 +34,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>system-runner</module>
+        <module>ignite-runner</module>
         <module>test-harness</module>
         <module>modules/checkstyle</module>
         <module>parent</module>
