@@ -42,9 +42,10 @@ public class BasicTest {
 
 	public static void populate(Connection conn, int count) throws SQLException {
 
-		conn.prepareStatement("SET STREAMING ON;").execute();
 		PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, t1key) VALUES (?, ?)");
+		a.addBatch("SET STREAMING ON");
 		PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, t2key) VALUES (?, ?)");
+		b.addBatch("SET STREAMING ON");
 
 		for (int i = 0; i < count; i++) {
 			a.setInt(1, i);
