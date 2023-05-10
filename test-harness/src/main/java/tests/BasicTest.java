@@ -1,10 +1,6 @@
 package tests;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.logging.Logger;
@@ -53,13 +49,14 @@ public class BasicTest {
 		for (int i = 0; i < count; i++) {
 			a.setInt(1, i);
 			a.setInt(2, (int) Math.round(Math.random() * count));
-			a.execute();
+			a.addBatch();
 			b.setInt(1, i + count);
 			b.setInt(2, (int) Math.round(Math.random() * count));
-			b.execute();
+			b.addBatch();
 			if (i % 500 == 0) System.out.println("Inserted " + i);
 		}
-
+		a.executeLargeBatch();
+		b.executeLargeBatch();
 	}
 
 	public static void test(Connection conn, int count) throws SQLException {
