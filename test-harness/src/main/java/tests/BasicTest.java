@@ -76,7 +76,7 @@ public class BasicTest {
 			ResultSet result = stmt.getResultSet();
 			int resultCount = 0;
 			while (result.next()) {
-				count++;
+				resultCount++;
 			}
 			System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i, count, resultCount, msDuration);
 			durations.add(msDuration);
