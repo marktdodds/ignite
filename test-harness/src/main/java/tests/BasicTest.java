@@ -43,9 +43,7 @@ public class BasicTest {
 	public static void populate(Connection conn, int count) throws SQLException {
 
 		PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, t1key) VALUES (?, ?)");
-		a.addBatch("SET STREAMING ON");
 		PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, t2key) VALUES (?, ?)");
-		b.addBatch("SET STREAMING ON");
 
 		for (int i = 0; i < count; i++) {
 			a.setInt(1, i);
@@ -61,7 +59,7 @@ public class BasicTest {
 	}
 
 	public static void test(Connection conn, int count) throws SQLException {
-		PreparedStatement stmt = conn.prepareStatement("SELECT * FROM table1 INNER JOIN table2 ON table1.key1 = table2.key1");
+		PreparedStatement stmt = conn.prepareStatement("SELECT * FROM table1 INNER JOIN table2 ON table1.t1key = table2.t2key");
 		ArrayList<Long> durations = new ArrayList<>();
 		for (int i = 0; i < count; i++) {
 			long start = new Date().getTime();
