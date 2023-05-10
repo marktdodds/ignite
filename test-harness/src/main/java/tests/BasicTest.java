@@ -56,10 +56,14 @@ public class BasicTest {
 			b.setInt(1, i + count);
 			b.setInt(2, (int) Math.round(Math.random() * count));
 			b.addBatch();
-			if (i % 500 == 0) System.out.println("Inserted " + i);
+			if (i % 1000 == 0) {
+				a.executeBatch();
+				a.clearBatch();
+				b.executeBatch();
+				b.clearBatch();
+				System.out.println("Inserted " + i);
+			}
 		}
-		a.executeBatch();
-		b.executeBatch();
 	}
 
 	public static void test(Connection conn, int count) throws SQLException {
