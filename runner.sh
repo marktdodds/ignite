@@ -2,6 +2,12 @@
 
 source environments/general.env
 
+compile=0
+if [[ $1 == "compile" ]]; then
+  compile=1
+  shift
+fi
+
 for env in "$@"; do
         source $env || exit 1
 done
@@ -38,7 +44,9 @@ cp_file=$(mktemp)
 logfile="logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log"
 
 # Compile the modules
-./mvnw -pl $modules compile
+if [[ $compile -eq 1 ]]; then
+  ./mvnw -pl $modules compile
+fi
 
 # Generate the classpath
 ./mvnw -pl :ignite-runner dependency:build-classpath -Dmdep.outputFile="$cp_file"
