@@ -25,15 +25,22 @@ public class BasicTest {
 		} catch (SQLException e) {
 			Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
 		}
-		try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-			System.out.println("Starting tests...");
-			int testIterations = Integer.parseInt(args[2]);
-			test(conn, testIterations);
-			System.out.println("Completed tests");
-		} catch (SQLException e) {
-			Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
+		System.out.println("Starting tests...");
+		int testIterations = Integer.parseInt(args[2]);
+		ArrayList<Long> durations = new ArrayList<>();
+
+		for (int i = 0; i < testIterations; i++) {
+			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
+				long result[] = test(conn, testIterations);
+				System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i + 1, testIterations, result[0], result[1]);
+
+				durations.add(result[1]);
+			} catch (SQLException e) {
+				Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
+			}
 		}
 
+		System.out.format("Tests completed. Average duration: %s\n", durations.stream().mapToLong(Long::longValue).average().getAsDouble());
 	}
 
 	public static void create(Connection conn) throws SQLException {
@@ -66,22 +73,17 @@ public class BasicTest {
 		}
 	}
 
-	public static void test(Connection conn, int count) throws SQLException {
+	public static long[] test(Connection conn, int count) throws SQLException {
 		PreparedStatement stmt = conn.prepareStatement("SELECT * FROM table1 INNER JOIN table2 ON table1.t1key = table2.t2key");
-		ArrayList<Long> durations = new ArrayList<>();
-		for (int i = 0; i < count; i++) {
-			long start = new Date().getTime();
-			stmt.execute();
-			Long msDuration = new Date().getTime() - start;
-			ResultSet result = stmt.getResultSet();
-			int resultCount = 0;
-			while (result.next()) {
-				resultCount++;
-			}
-			System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i, count, resultCount, msDuration);
-			durations.add(msDuration);
+		long start = new Date().getTime();
+		stmt.execute();
+		long msDuration = new Date().getTime() - start;
+		ResultSet result = stmt.getResultSet();
+		int resultCount = 0;
+		while (result.next()) {
+			resultCount++;
 		}
-		System.out.format("Tests completed. Average duration: %s\n", durations.stream().mapToLong(Long::longValue).average());
+		return new long[]{resultCount, msDuration};
 	}
 
 }
