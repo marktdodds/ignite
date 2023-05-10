@@ -14,16 +14,16 @@ fi
 
 printf "Starting test harness with:\n"
 printf "\tTest Name: $test\n"
-printf "\tArgs: $@"
+echo -e "\tArgs: $@"
 printf "\n\tJava Version: $(java --version | head -n 1)\n"
 
 cp_file=$(mktemp)
 ./mvnw -pl :test-harness compile dependency:build-classpath -Dmdep.outputFile="$cp_file"
 
-export CLASSPATH=$(find test-harness -name classes -type d | tr "\n" ":")$(cat $cp_file)
+export CLASSPATH=$(find $(pwd)/test-harness -name classes -type d | tr "\n" ":")$(cat $cp_file)
 rm $cp_file
 
-start_class=$test
+start_class=tests.$test
 echo $CLASSPATH
-java $java_args $start_class $config
+java $java_args $start_class $config $@
 #./mvnw -e -pl :ignite-core,:ignite-spring,:ignite-indexing,:ignite-calcite compile exec:java -Dexec.mainClass="$start_class" -Dexec.args="$config" 2>&1 | tee logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log

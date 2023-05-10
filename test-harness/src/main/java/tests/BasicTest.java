@@ -17,11 +17,19 @@ public class BasicTest {
 		Class.forName("org.apache.ignite.IgniteJdbcThinDriver");
 
 		try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
+			System.out.println("Starting data loading...");
 			int populationCount = Integer.parseInt(args[1]);
-			int testIterations = Integer.parseInt(args[2]);
 			create(conn);
 			populate(conn, populationCount);
+			System.out.println("Completed data loading");
+		} catch (SQLException e) {
+			Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
+		}
+		try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
+			System.out.println("Starting tests...");
+			int testIterations = Integer.parseInt(args[2]);
 			test(conn, testIterations);
+			System.out.println("Completed tests");
 		} catch (SQLException e) {
 			Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
 		}
@@ -38,6 +46,7 @@ public class BasicTest {
 
 	public static void populate(Connection conn, int count) throws SQLException {
 
+		conn.prepareStatement("SET STREAMING ON;").execute();
 		PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, t1key) VALUES (?, ?)");
 		PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, t2key) VALUES (?, ?)");
 
