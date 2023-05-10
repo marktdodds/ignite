@@ -37,9 +37,9 @@ public class BasicTest {
 	}
 
 	public static void create(Connection conn) throws SQLException {
-		PreparedStatement a = conn.prepareStatement("CREATE TABLE table1 (id int primary key, t1key int) WITH \"TEMPLATE=CacheA,CACHE_NAME=CacheA\"");
+		PreparedStatement a = conn.prepareStatement("DROP TABLE IF EXISTS table1; CREATE TABLE table1 (id int primary key, t1key int) WITH \"TEMPLATE=CacheA,CACHE_NAME=CacheA\"");
 		a.execute();
-		PreparedStatement b = conn.prepareStatement("CREATE TABLE table2 (id int primary key, t2key int) WITH \"TEMPLATE=CacheB,CACHE_NAME=CacheB\"");
+		PreparedStatement b = conn.prepareStatement("DROP TABLE IF EXISTS table2; CREATE TABLE table2 (id int primary key, t2key int) WITH \"TEMPLATE=CacheB,CACHE_NAME=CacheB\"");
 		b.execute();
 		System.out.println("Tables created.");
 	}
