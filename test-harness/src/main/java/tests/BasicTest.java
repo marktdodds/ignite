@@ -32,7 +32,7 @@ public class BasicTest {
 
 		}
 
-		index = Arrays.binarySearch(args, "--load");
+		index = Arrays.binarySearch(args, "--run");
 		if (index >= 0) {
 			System.out.println("Starting tests...");
 			int testIterations = Integer.parseInt(args[index + 1]);
