@@ -6,8 +6,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 public class BasicTest {
 
@@ -15,32 +17,40 @@ public class BasicTest {
 
 		// Register JDBC driver.
 		Class.forName("org.apache.ignite.IgniteJdbcThinDriver");
+		int index = Arrays.binarySearch(args, "--load");
+		if (index >= 0) {
 
-		try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-			System.out.println("Starting data loading...");
-			int populationCount = Integer.parseInt(args[1]);
-			create(conn);
-			populate(conn, populationCount);
-			System.out.println("Completed data loading");
-		} catch (SQLException e) {
-			Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
-		}
-		System.out.println("Starting tests...");
-		int testIterations = Integer.parseInt(args[2]);
-		ArrayList<Long> durations = new ArrayList<>();
-
-		for (int i = 0; i < testIterations; i++) {
 			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-				long result[] = test(conn, testIterations);
-				System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i + 1, testIterations, result[0], result[1]);
-
-				durations.add(result[1]);
+				System.out.println("Starting data loading...");
+				int populationCount = Integer.parseInt(args[index + 1]);
+				create(conn);
+				populate(conn, populationCount);
+				System.out.println("Completed data loading");
 			} catch (SQLException e) {
 				Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
 			}
+
 		}
 
-		System.out.format("Tests completed. Average duration: %s\n", durations.stream().mapToLong(Long::longValue).average().getAsDouble());
+		index = Arrays.binarySearch(args, "--load");
+		if (index >= 0) {
+			System.out.println("Starting tests...");
+			int testIterations = Integer.parseInt(args[index + 1]);
+			ArrayList<Long> durations = new ArrayList<>();
+
+			for (int i = 0; i < testIterations; i++) {
+				try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
+					long result[] = test(conn, testIterations);
+					System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i + 1, testIterations, result[0], result[1]);
+
+					durations.add(result[1]);
+				} catch (SQLException e) {
+					Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
+				}
+			}
+
+			System.out.format("Tests completed. Average duration: %s\n", durations.stream().mapToLong(Long::longValue).average().getAsDouble());
+		}
 	}
 
 	public static void create(Connection conn) throws SQLException {
