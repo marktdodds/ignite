@@ -157,8 +157,8 @@ public abstract class LogicalScanConverterRule<T extends ProjectableFilterableTa
 					for (List<UUID> nodeIds : desc.colocationGroup(Commons.mapContext(new UUID(0, 0), AffinityTopologyVersion.NONE)).assignments()) {
 						ids.addAll(nodeIds);
 					}
+					System.out.printf("Using enhancements with colocation group size: %s, ids: %s\n", ids.size(), ids);
 					if (ids.size() == 1) {
-						System.out.printf("Using enhancements with colocation group size: %s, ids: %s\n", ids.size(), ids);
 						distribution = IgniteDistributions.single();
 					}
 				}
