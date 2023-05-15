@@ -17,7 +17,8 @@ public class BasicTest {
 
 		// Register JDBC driver.
 		Class.forName("org.apache.ignite.IgniteJdbcThinDriver");
-		int index = Arrays.binarySearch(args, "--load");
+		System.out.format("Running with args: %s\n", String.join(" ", args));
+		int index = Arrays.asList(args).indexOf( "--load");
 		if (index >= 0) {
 
 			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
@@ -32,7 +33,7 @@ public class BasicTest {
 
 		}
 
-		index = Arrays.binarySearch(args, "--run");
+		index = Arrays.asList(args).indexOf( "--run");
 		if (index >= 0) {
 			System.out.println("Starting tests...");
 			int testIterations = Integer.parseInt(args[index + 1]);
