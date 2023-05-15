@@ -151,7 +151,7 @@ public abstract class LogicalScanConverterRule<T extends ProjectableFilterableTa
 					distribution = distribution.apply(mapping);
 				}
 
-				if (System.getProperty("USE_ENHANCEMENTS") != null && table instanceof IgniteCacheTable) {
+				if (System.getenv("USE_ENHANCEMENTS") != null && table instanceof IgniteCacheTable) {
 					CacheTableDescriptor desc = ((IgniteCacheTable) table).descriptor();
 					HashSet<UUID> ids = new HashSet<>();
 					for (List<UUID> nodeIds : desc.colocationGroup(Commons.mapContext(new UUID(0, 0), AffinityTopologyVersion.NONE)).assignments()) {
