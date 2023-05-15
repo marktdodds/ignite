@@ -40,8 +40,10 @@ public class BasicTest {
 
 			for (int i = 0; i < testIterations; i++) {
 				try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-					long result[] = test(conn, testIterations, Arrays.asList(args).contains("--countResult"));
-					System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i + 1, testIterations, result[0], result[1]);
+					boolean countResult = Arrays.asList(args).contains("--countResult");
+					long result[] = test(conn, testIterations, countResult);
+					System.out.format("[Test %s/%s] Result count %s; Query Duration %s", i + 1, testIterations, result[0], result[1]);
+					if (countResult) System.out.format(", Total duration %s", result[2]);
 					durations.add(result[1]);
 				} catch (SQLException e) {
 					Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
@@ -94,7 +96,8 @@ public class BasicTest {
 				resultCount++;
 			}
 		}
-		return new long[]{resultCount, msDuration};
+		long totalDuration = new Date().getTime() - start;
+		return new long[]{resultCount, msDuration, totalDuration};
 	}
 
 }
