@@ -36,22 +36,26 @@ public class BasicTest {
 		if (index >= 0) {
 			System.out.println("Starting tests...");
 			int testIterations = Integer.parseInt(args[index + 1]);
-			ArrayList<Long> durations = new ArrayList<>();
+			boolean countResult = Arrays.asList(args).contains("--countResult");
+			ArrayList<Long> queryDurations = new ArrayList<>();
+			ArrayList<Long> totalDurations = new ArrayList<>();
 
 			for (int i = 0; i < testIterations; i++) {
 				try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-					boolean countResult = Arrays.asList(args).contains("--countResult");
 					long result[] = test(conn, testIterations, countResult);
 					System.out.format("[Test %s/%s] Result count %s; Query Duration %s", i + 1, testIterations, result[0], result[1]);
 					if (countResult) System.out.format(", Total duration %s", result[2]);
 					System.out.format("\n");
-					durations.add(result[1]);
+					queryDurations.add(result[1]);
+					if (countResult) totalDurations.add(result[2]);
 				} catch (SQLException e) {
 					Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
 				}
 			}
 
-			System.out.format("Tests completed. Average duration: %s\n", durations.stream().mapToLong(Long::longValue).average().getAsDouble());
+			System.out.format("Tests completed. Average duration: %s", queryDurations.stream().mapToLong(Long::longValue).average().getAsDouble());
+			if (countResult) System.out.format(", Average total duration: %s", totalDurations.stream().mapToLong(Long::longValue).average().getAsDouble());
+			System.out.format("\n");
 		}
 	}
 
