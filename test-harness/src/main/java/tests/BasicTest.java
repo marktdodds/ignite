@@ -17,7 +17,7 @@ public class BasicTest {
 		// Register JDBC driver.
 		Class.forName("org.apache.ignite.IgniteJdbcThinDriver");
 		System.out.format("Running with args: %s\n", String.join(" ", args));
-		int index = Arrays.asList(args).indexOf( "--load");
+		int index = Arrays.asList(args).indexOf("--load");
 		if (index >= 0) {
 
 			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
@@ -32,7 +32,7 @@ public class BasicTest {
 
 		}
 
-		index = Arrays.asList(args).indexOf( "--run");
+		index = Arrays.asList(args).indexOf("--run");
 		if (index >= 0) {
 			System.out.println("Starting tests...");
 			int testIterations = Integer.parseInt(args[index + 1]);
@@ -40,9 +40,8 @@ public class BasicTest {
 
 			for (int i = 0; i < testIterations; i++) {
 				try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-					long result[] = test(conn, testIterations);
+					long result[] = test(conn, testIterations, Arrays.asList(args).contains("--countResult"));
 					System.out.format("[Test %s/%s] Result count %s; Duration %s\n", i + 1, testIterations, result[0], result[1]);
-
 					durations.add(result[1]);
 				} catch (SQLException e) {
 					Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
@@ -83,15 +82,17 @@ public class BasicTest {
 		}
 	}
 
-	public static long[] test(Connection conn, int count) throws SQLException {
+	public static long[] test(Connection conn, int count, boolean countResult) throws SQLException {
 		PreparedStatement stmt = conn.prepareStatement("SELECT * FROM table1 INNER JOIN table2 ON table1.t1key = table2.t2key");
 		long start = new Date().getTime();
 		stmt.execute();
 		long msDuration = new Date().getTime() - start;
 		ResultSet result = stmt.getResultSet();
 		int resultCount = 0;
-		while (result.next()) {
-			resultCount++;
+		if (countResult) {
+			while (result.next()) {
+				resultCount++;
+			}
 		}
 		return new long[]{resultCount, msDuration};
 	}
