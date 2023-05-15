@@ -87,7 +87,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
         QueryPlan plan = cache.get(key);
         if (System.getenv("DISABLE_QUERY_CACHE") != null) {
             System.out.println(">>> Cache Disabled");
-            plan = null;
+            return null;
         }
         return plan != null ? plan.copy() : null;
     }
