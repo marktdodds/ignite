@@ -44,6 +44,7 @@ public class BasicTest {
 					long result[] = test(conn, testIterations, countResult);
 					System.out.format("[Test %s/%s] Result count %s; Query Duration %s", i + 1, testIterations, result[0], result[1]);
 					if (countResult) System.out.format(", Total duration %s", result[2]);
+					System.out.format("\n");
 					durations.add(result[1]);
 				} catch (SQLException e) {
 					Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
