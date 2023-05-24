@@ -21,9 +21,9 @@ public class BasicTest {
 		if (index >= 0) {
 
 			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-				System.out.println("Starting data loading...");
 				int populationCountA = Integer.parseInt(args[index + 1]);
 				int populationCountB = Integer.parseInt(args[index + 2]);
+				System.out.println("Starting data loading. Table A: " + populationCountA + ", Table B: " + populationCountB);
 				create(conn);
 				populate(conn, populationCountA, populationCountB);
 				System.out.println("Completed data loading");
@@ -96,6 +96,18 @@ public class BasicTest {
 				System.out.println("Inserted " + i);
 			}
 		}
+
+		a.executeBatch();
+		b.executeBatch();
+
+		PreparedStatement check = conn.prepareStatement("SELECT count(*) from table1;");
+		check.execute();
+		System.out.println("Table1 Count: " + check.getResultSet().getInt(0));
+
+		check = conn.prepareStatement("SELECT count(*) from table2;");
+		check.execute();
+		System.out.println("Table2 Count: " + check.getResultSet().getInt(0));
+
 	}
 
 	public static long[] test(Connection conn, int count, boolean countResult) throws SQLException {
