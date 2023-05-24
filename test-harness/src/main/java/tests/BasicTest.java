@@ -103,12 +103,12 @@ public class BasicTest {
 		PreparedStatement check = conn.prepareStatement("SELECT count(*) from table1;");
 		check.execute();
 		ResultSet set = check.getResultSet();
-		if (set.next()) System.out.println("Table1 Count: " + set.getInt(0));
+		if (set.next()) System.out.println("Table1 Count: " + set.getInt(1));
 
 		check = conn.prepareStatement("SELECT count(*) from table2;");
 		check.execute();
 		set = check.getResultSet();
-		if (set.next()) System.out.println("Table2 Count: " + set.getInt(0));
+		if (set.next()) System.out.println("Table2 Count: " + set.getInt(1));
 
 	}
 
