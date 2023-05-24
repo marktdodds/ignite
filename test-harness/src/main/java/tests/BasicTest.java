@@ -22,9 +22,10 @@ public class BasicTest {
 
 			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
 				System.out.println("Starting data loading...");
-				int populationCount = Integer.parseInt(args[index + 1]);
+				int populationCountA = Integer.parseInt(args[index + 1]);
+				int populationCountB = Integer.parseInt(args[index + 2]);
 				create(conn);
-				populate(conn, populationCount);
+				populate(conn, populationCountA, populationCountB);
 				System.out.println("Completed data loading");
 			} catch (SQLException e) {
 				Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
@@ -67,18 +68,26 @@ public class BasicTest {
 		System.out.println("Tables created.");
 	}
 
-	public static void populate(Connection conn, int count) throws SQLException {
+	public static void populate(Connection conn, int countA, int countB) throws SQLException {
 
 		PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, t1key) VALUES (?, ?)");
 		PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, t2key) VALUES (?, ?)");
 
-		for (int i = 0; i < count; i++) {
-			a.setInt(1, i);
-			a.setInt(2, (int) Math.round(Math.random() * 1000));
-			a.addBatch();
-			b.setInt(1, i + count);
-			b.setInt(2, (int) Math.round(Math.random() * 1000));
-			b.addBatch();
+		int maxCount = Math.max(countA, countB);
+
+		for (int i = 0; i < maxCount; i++) {
+			if (i < countA) {
+				a.setInt(1, i);
+				a.setInt(2, (int) Math.round(Math.random() * 1000));
+				a.addBatch();
+			}
+
+			if (i < countB) {
+				b.setInt(1, i + maxCount);
+				b.setInt(2, (int) Math.round(Math.random() * 1000));
+				b.addBatch();
+			}
+
 			if (i % 10000 == 0) {
 				a.executeBatch();
 				a.clearBatch();
