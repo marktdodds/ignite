@@ -40,13 +40,14 @@ public class BasicTest {
 		if (index >= 0) {
 			System.out.println("Starting tests...");
 			int testIterations = Integer.parseInt(args[index + 1]);
+			int fetchSize = Integer.parseInt(args[index + 2]);
 			boolean countResult = Arrays.asList(args).contains("--countResult");
 			ArrayList<Long> queryDurations = new ArrayList<>();
 			ArrayList<Long> totalDurations = new ArrayList<>();
 
 			for (int i = 0; i < testIterations; i++) {
 				try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
-					long result[] = test(conn, testIterations, countResult);
+					long result[] = test(conn, testIterations, fetchSize, countResult);
 					System.out.format("[Test %s/%s] Result count %s; Query Duration %s", i + 1, testIterations, result[0], result[1]);
 					if (countResult) System.out.format(", Total duration %s", result[2]);
 					System.out.format("\n");
@@ -132,8 +133,9 @@ public class BasicTest {
 
 	}
 
-	public static long[] test(Connection conn, int count, boolean countResult) throws SQLException {
+	public static long[] test(Connection conn, int count, int fetchSize, boolean countResult) throws SQLException {
 		PreparedStatement stmt = conn.prepareStatement("SELECT * FROM table1 INNER JOIN table2 ON table1.t1key = table2.t2key");
+		stmt.setFetchSize(fetchSize);
 		long start = new Date().getTime();
 		stmt.execute();
 		long msDuration = new Date().getTime() - start;
