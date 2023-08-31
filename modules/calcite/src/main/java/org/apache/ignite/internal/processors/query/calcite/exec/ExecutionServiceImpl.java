@@ -43,6 +43,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObjectUtils;
 import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
+import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
 import org.apache.ignite.internal.processors.failure.FailureProcessor;
@@ -94,6 +95,7 @@ import org.apache.ignite.internal.processors.query.calcite.util.ListFieldsQueryC
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.util.InternalTimer;
 import org.jetbrains.annotations.Nullable;
 
 import static java.util.Collections.singletonList;
@@ -167,6 +169,9 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
     /** */
     private MemoryTracker memoryTracker;
+
+    /** */
+    private GridCacheProcessor gridCacheProcessor;
 
     /**
      * @param ctx Kernal.
@@ -384,6 +389,10 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         return memoryTracker;
     }
 
+    private void gridCacheProcessor(GridCacheProcessor gcp) {
+        gridCacheProcessor = gcp;
+    }
+
     /** {@inheritDoc} */
     @Override public void onStart(GridKernalContext ctx) {
         localNodeId(ctx.localNodeId());
@@ -391,6 +400,8 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         cacheObjectValueContext(ctx.query().objectContext());
         eventManager(ctx.event());
         iteratorsHolder(new ClosableIteratorsHolder(log));
+
+        gridCacheProcessor(ctx.cache());
 
         CalciteQueryProcessor proc = Objects.requireNonNull(
             Commons.lookupComponent(ctx, CalciteQueryProcessor.class));
@@ -539,6 +550,19 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         MappingQueryContext mapCtx = Commons.mapContext(locNodeId, topologyVersion());
         plan.init(mappingSvc, mapCtx);
 
+        InternalTimer timer = InternalTimer.get("ExecutionTimer");
+        timer.start();
+
+        if (System.getenv("MD_USE_ENHANCEMENTS") != null) {
+            plan.optimize(mappingSvc, mapCtx, gridCacheProcessor);
+            timer.log("Optimizaion Time", System.out);
+
+            plan.fragments().forEach(f -> {
+                System.out.printf("Node IDS: %s, Fragment Id: %s, fragment: %s\n\n", f.mapping().nodeIds(), f.fragmentId(), f.serialized());
+            });
+        }
+
+
         List<Fragment> fragments = plan.fragments();
 
         // Local execution
@@ -576,6 +600,8 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
         Node<Row> node = new LogicalRelImplementor<>(ectx, partitionService(), mailboxRegistry(),
             exchangeService(), failureProcessor()).go(fragment.root());
+
+        timer.start();
 
         qry.run(ectx, plan, node);
 

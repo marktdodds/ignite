@@ -15,7 +15,7 @@ fi
 printf "Starting test harness with:\n"
 printf "\tTest Name: $test\n"
 echo -e "\tArgs: $@"
-printf "\n\tJava Version: $(java --version | head -n 1)\n"
+printf "\tJava Version: $(java --version | head -n 1)\n"
 
 cp_file=$(mktemp)
 ./mvnw -pl :test-harness compile dependency:build-classpath -Dmdep.outputFile="$cp_file"

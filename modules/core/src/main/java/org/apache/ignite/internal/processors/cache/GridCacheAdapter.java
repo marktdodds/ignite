@@ -3432,7 +3432,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
     /** {@inheritDoc} */
     @Override public CacheMetrics clusterMetrics(ClusterGroup grp) {
-        List<CacheMetrics> metrics = new ArrayList<>(grp.nodes().size());
+        Map<UUID, CacheMetrics> metrics = new HashMap<>();
 
         for (ClusterNode node : grp.nodes()) {
             Map<Integer, CacheMetrics> nodeCacheMetrics = ((IgniteClusterNode)node).cacheMetrics();
@@ -3441,7 +3441,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                 CacheMetrics e = nodeCacheMetrics.get(context().cacheId());
 
                 if (e != null)
-                    metrics.add(e);
+                    metrics.put(node.id(), e);
             }
         }
 

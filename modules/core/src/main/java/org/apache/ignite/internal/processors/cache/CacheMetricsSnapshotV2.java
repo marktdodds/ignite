@@ -20,7 +20,10 @@ package org.apache.ignite.internal.processors.cache;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.internal.dto.IgniteDataTransferObject;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -329,6 +332,9 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
     /** Number of keys processed during index rebuilding. */
     private long idxRebuildKeyProcessed;
 
+    /** A map of Node ID -> cache size on that node */
+    private final Map<UUID, Long> distributedCacheSizes = new HashMap<>();
+
     /**
      * Default constructor.
      */
@@ -442,6 +448,8 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
 
         idxRebuildInProgress = m.isIndexRebuildInProgress();
         idxRebuildKeyProcessed = m.getIndexRebuildKeysProcessed();
+
+		distributedCacheSizes.put(m.getLocalNodeId(), m.getCacheSize());
     }
 
     /**
@@ -450,7 +458,7 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
      * @param loc Metrics for cache on local node.
      * @param metrics Metrics for merge.
      */
-    public CacheMetricsSnapshotV2(CacheMetrics loc, Collection<CacheMetrics> metrics) {
+    public CacheMetricsSnapshotV2(CacheMetrics loc, Map<UUID, CacheMetrics> metrics) {
         cacheName = loc.name();
         isEmpty = loc.isEmpty();
         isWriteBehindEnabled = loc.isWriteBehindEnabled();
@@ -473,7 +481,8 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
         isValidForReading = loc.isValidForReading();
         isValidForWriting = loc.isValidForWriting();
 
-        for (CacheMetrics e : metrics) {
+        for (Map.Entry<UUID, CacheMetrics> entry : metrics.entrySet()) {
+			CacheMetrics e = entry.getValue();
             reads += e.getCacheGets();
             puts += e.getCachePuts();
             size += e.getSize();
@@ -587,6 +596,8 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
             keysToRebalanceLeft += e.getKeysToRebalanceLeft();
             rebalancingBytesRate += e.getRebalancingBytesRate();
             rebalancingKeysRate += e.getRebalancingKeysRate();
+
+			distributedCacheSizes.put(entry.getKey(), e.getCacheSize());
         }
 
         int size = metrics.size();
@@ -820,6 +831,12 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
     /** {@inheritDoc} */
     @Override public long getCacheSize() {
         return cacheSize;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getCacheSize(UUID nodeId) {
+        return distributedCacheSizes.getOrDefault(nodeId, 0L);
     }
 
     /** {@inheritDoc} */

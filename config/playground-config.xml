@@ -31,6 +31,7 @@
 					<property name="name" value="CacheA*"/>
 					<property name="cacheMode" value="PARTITIONED"/>
 					<property name="backups" value="0"/>
+					<property name="statisticsEnabled" value="true"/>
 					<property name="nodeFilter">
 						<bean class="org.apache.ignite.util.AttributeNodeFilter">
 							<constructor-arg value="HostCacheA"/>
@@ -39,11 +40,12 @@
 					</property>
 					<!-- Other cache parameters -->
 				</bean>
-				<bean abstract="true" class="org.apache.ignite.configuration.CacheConfiguration" id="cache-template-bean">
+				<bean abstract="true" class="org.apache.ignite.configuration.CacheConfiguration" id="cache-template-bean2">
 					<!-- when you create a template via XML configuration, you must add an asterisk to the name of the template -->
 					<property name="name" value="CacheB*"/>
 					<property name="cacheMode" value="PARTITIONED"/>
 					<property name="backups" value="0"/>
+					<property name="statisticsEnabled" value="true"/>
 					<property name="nodeFilter">
 						<bean class="org.apache.ignite.util.AttributeNodeFilter">
 							<constructor-arg value="HostCacheB"/>

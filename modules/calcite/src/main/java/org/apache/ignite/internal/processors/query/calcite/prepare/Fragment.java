@@ -17,13 +17,18 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationMappingException;
 import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapping;
@@ -34,6 +39,7 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.NodeMappingE
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
+import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -137,6 +143,14 @@ public class Fragment {
         return new Fragment(id, root, remotes, rootSer, mapping(ctx, mq, nodesSource(mappingSrvc, ctx)));
     }
 
+    /**
+     * Remap the fragment to a new mapping
+     * @param mapping The new mapping to apply
+     */
+    Fragment remap(FragmentMapping mapping) {
+        return new Fragment(id, root, remotes, rootSer, mapping);
+    }
+
     /** */
     private FragmentMapping mapping(MappingQueryContext ctx, RelMetadataQuery mq, Supplier<List<UUID>> nodesSource) {
         try {
@@ -169,9 +183,35 @@ public class Fragment {
     }
 
     /** */
-    private boolean single() {
-        return root instanceof IgniteSender
-            && ((IgniteSender)root).sourceDistribution().satisfies(IgniteDistributions.single());
+    protected boolean single() {
+		return (root instanceof IgniteSender ? ((IgniteSender) root).sourceDistribution() : root.distribution()).satisfies(IgniteDistributions.single());
+	}
+
+    /**
+     * Get a list of caches used by a fragment
+     * @return List of cache names as Strings
+     */
+    protected List<IgniteCacheTable> cachesUsed() {
+        Deque<RelNode> stack = new LinkedList<>();
+        List<IgniteCacheTable> caches = new LinkedList<>();
+        stack.add(root());
+
+        while (!stack.isEmpty()) {
+            RelNode r = stack.pop();
+
+            // Add children
+            stack.addAll(r.getInputs());
+
+            // Check table
+            RelOptTable table = r.getTable();
+            if (table == null) continue;
+            Optional<IgniteCacheTable> cacheTable = table.maybeUnwrap(IgniteCacheTable.class);
+            if (!cacheTable.isPresent()) continue;
+
+            // Add cache name if present
+            caches.add(cacheTable.get());
+        }
+        return caches;
     }
 
     /** {@inheritDoc} */

@@ -21,7 +21,9 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Collection;
+import java.util.Map;
+import java.util.UUID;
+
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.internal.marshaller.optimized.OptimizedObjectOutputStream;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -428,7 +430,7 @@ public class CacheMetricsSnapshot implements CacheMetrics, Externalizable {
      * @param loc Metrics for cache on local node.
      * @param metrics Metrics for merge.
      */
-    public CacheMetricsSnapshot(CacheMetrics loc, Collection<CacheMetrics> metrics) {
+    public CacheMetricsSnapshot(CacheMetrics loc, Map<UUID, CacheMetrics> metrics) {
         cacheName = loc.name();
         isEmpty = loc.isEmpty();
         isWriteBehindEnabled = loc.isWriteBehindEnabled();
@@ -451,7 +453,7 @@ public class CacheMetricsSnapshot implements CacheMetrics, Externalizable {
         isValidForReading = loc.isValidForReading();
         isValidForWriting = loc.isValidForWriting();
 
-        for (CacheMetrics e : metrics) {
+        for (CacheMetrics e : metrics.values()) {
             reads += e.getCacheGets();
             puts += e.getCachePuts();
             hits += e.getCacheHits();
@@ -794,6 +796,13 @@ public class CacheMetricsSnapshot implements CacheMetrics, Externalizable {
     /** {@inheritDoc} */
     @Override public long getCacheSize() {
         return cacheSize;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getCacheSize(UUID nodeId) {
+        // NOOP
+        return 0L;
     }
 
     /** {@inheritDoc} */

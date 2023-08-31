@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -37,193 +36,163 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.mapping.Mapping;
 import org.apache.calcite.util.mapping.Mappings;
-import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.ProjectableFilterableTableScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.logical.IgniteLogicalIndexScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.logical.IgniteLogicalTableScan;
-import org.apache.ignite.internal.processors.query.calcite.schema.CacheTableDescriptor;
-import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteIndex;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.CorrelationTrait;
-import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.RewindabilityTrait;
-import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.processors.query.calcite.util.RexUtils;
 import org.apache.ignite.internal.util.typedef.F;
 
-/**
- *
- */
+/** */
 public abstract class LogicalScanConverterRule<T extends ProjectableFilterableTableScan> extends AbstractIgniteConverterRule<T> {
-	/**
-	 * Instance.
-	 */
-	public static final LogicalScanConverterRule<IgniteLogicalIndexScan> INDEX_SCAN =
-		new LogicalScanConverterRule<IgniteLogicalIndexScan>(IgniteLogicalIndexScan.class, "LogicalIndexScanConverterRule") {
-			/** {@inheritDoc} */
-			@Override
-			protected PhysicalNode convert(
-				RelOptPlanner planner,
-				RelMetadataQuery mq,
-				IgniteLogicalIndexScan rel
-			) {
-				RelOptCluster cluster = rel.getCluster();
-				IgniteTable table = rel.getTable().unwrap(IgniteTable.class);
-				IgniteIndex idx = table.getIndex(rel.indexName());
+    /** Instance. */
+    public static final LogicalScanConverterRule<IgniteLogicalIndexScan> INDEX_SCAN =
+        new LogicalScanConverterRule<IgniteLogicalIndexScan>(IgniteLogicalIndexScan.class, "LogicalIndexScanConverterRule") {
+            /** {@inheritDoc} */
+            @Override protected PhysicalNode convert(
+                RelOptPlanner planner,
+                RelMetadataQuery mq,
+                IgniteLogicalIndexScan rel
+            ) {
+                RelOptCluster cluster = rel.getCluster();
+                IgniteTable table = rel.getTable().unwrap(IgniteTable.class);
+                IgniteIndex idx = table.getIndex(rel.indexName());
 
-				if (table.isIndexRebuildInProgress()) {
-					cluster.getPlanner().prune(rel);
+                if (table.isIndexRebuildInProgress()) {
+                    cluster.getPlanner().prune(rel);
 
-					return null;
-				}
+                    return null;
+                }
 
-				RelDistribution distribution = table.distribution();
-				RelCollation collation = idx.collation();
+                RelDistribution distribution = table.distribution();
+                RelCollation collation = idx.collation();
 
-				if (rel.projects() != null || rel.requiredColumns() != null) {
-					Mappings.TargetMapping mapping = createMapping(
-						rel.projects(),
-						rel.requiredColumns(),
-						table.getRowType(cluster.getTypeFactory()).getFieldCount()
-					);
+                if (rel.projects() != null || rel.requiredColumns() != null) {
+                    Mappings.TargetMapping mapping = createMapping(
+                        rel.projects(),
+                        rel.requiredColumns(),
+                        table.getRowType(cluster.getTypeFactory()).getFieldCount()
+                    );
 
-					distribution = distribution.apply(mapping);
-					collation = collation.apply(mapping);
-				}
+                    distribution = distribution.apply(mapping);
+                    collation = collation.apply(mapping);
+                }
 
-				RelTraitSet traits = rel.getCluster().traitSetOf(IgniteConvention.INSTANCE)
-					.replace(RewindabilityTrait.REWINDABLE)
-					.replace(distribution)
-					.replace(collation);
+                RelTraitSet traits = rel.getCluster().traitSetOf(IgniteConvention.INSTANCE)
+                    .replace(RewindabilityTrait.REWINDABLE)
+                    .replace(distribution)
+                    .replace(collation);
 
-				Set<CorrelationId> corrIds = RexUtils.extractCorrelationIds(rel.condition());
+                Set<CorrelationId> corrIds = RexUtils.extractCorrelationIds(rel.condition());
 
-				if (!F.isEmpty(rel.projects())) {
-					corrIds = new HashSet<>(corrIds);
-					corrIds.addAll(RexUtils.extractCorrelationIds(rel.projects()));
-				}
+                if (!F.isEmpty(rel.projects())) {
+                    corrIds = new HashSet<>(corrIds);
+                    corrIds.addAll(RexUtils.extractCorrelationIds(rel.projects()));
+                }
 
-				if (!corrIds.isEmpty())
-					traits = traits.replace(CorrelationTrait.correlations(corrIds));
+                if (!corrIds.isEmpty())
+                    traits = traits.replace(CorrelationTrait.correlations(corrIds));
 
-				return new IgniteIndexScan(
-					cluster,
-					traits,
-					rel.getTable(),
-					rel.indexName(),
-					rel.projects(),
-					rel.condition(),
-					rel.searchBounds(),
-					rel.requiredColumns(),
-					idx.collation()
-				);
-			}
-		};
+                return new IgniteIndexScan(
+                    cluster,
+                    traits,
+                    rel.getTable(),
+                    rel.indexName(),
+                    rel.projects(),
+                    rel.condition(),
+                    rel.searchBounds(),
+                    rel.requiredColumns(),
+                    idx.collation()
+                );
+            }
+        };
 
-	/**
-	 * Instance.
-	 */
-	public static final LogicalScanConverterRule<IgniteLogicalTableScan> TABLE_SCAN =
-		new LogicalScanConverterRule<IgniteLogicalTableScan>(IgniteLogicalTableScan.class, "LogicalTableScanConverterRule") {
-			/** {@inheritDoc} */
-			@Override
-			protected PhysicalNode convert(
-				RelOptPlanner planner,
-				RelMetadataQuery mq,
-				IgniteLogicalTableScan rel
-			) {
-				RelOptCluster cluster = rel.getCluster();
-				IgniteTable table = rel.getTable().unwrap(IgniteTable.class);
+    /** Instance. */
+    public static final LogicalScanConverterRule<IgniteLogicalTableScan> TABLE_SCAN =
+        new LogicalScanConverterRule<IgniteLogicalTableScan>(IgniteLogicalTableScan.class, "LogicalTableScanConverterRule") {
+            /** {@inheritDoc} */
+            @Override protected PhysicalNode convert(
+                RelOptPlanner planner,
+                RelMetadataQuery mq,
+                IgniteLogicalTableScan rel
+            ) {
+                RelOptCluster cluster = rel.getCluster();
+                IgniteTable table = rel.getTable().unwrap(IgniteTable.class);
 
-				RelDistribution distribution = table.distribution();
+                RelDistribution distribution = table.distribution();
+                if (rel.requiredColumns() != null) {
+                    Mappings.TargetMapping mapping = createMapping(
+                        rel.projects(),
+                        rel.requiredColumns(),
+                        table.getRowType(cluster.getTypeFactory()).getFieldCount()
+                    );
 
-				if (rel.requiredColumns() != null) {
-					Mappings.TargetMapping mapping = createMapping(
-						rel.projects(),
-						rel.requiredColumns(),
-						table.getRowType(cluster.getTypeFactory()).getFieldCount()
-					);
+                    distribution = distribution.apply(mapping);
+                }
 
-					distribution = distribution.apply(mapping);
-				}
+                RelTraitSet traits = cluster.traitSetOf(IgniteConvention.INSTANCE)
+                    .replace(RewindabilityTrait.REWINDABLE)
+                    .replace(distribution);
 
-				if (System.getenv("USE_ENHANCEMENTS") != null && table instanceof IgniteCacheTable) {
-					CacheTableDescriptor desc = ((IgniteCacheTable) table).descriptor();
-					HashSet<UUID> ids = new HashSet<>();
-					for (List<UUID> nodeIds : desc.colocationGroup(Commons.mapContext(new UUID(0, 0), AffinityTopologyVersion.NONE)).assignments()) {
-						ids.addAll(nodeIds);
-					}
-					System.out.printf("Using enhancements with colocation group size: %s, ids: %s\n", ids.size(), ids);
-					if (ids.size() == 1) {
-						distribution = IgniteDistributions.single();
-					}
-				}
+                Set<CorrelationId> corrIds = RexUtils.extractCorrelationIds(rel.condition());
 
-				RelTraitSet traits = cluster.traitSetOf(IgniteConvention.INSTANCE)
-					.replace(RewindabilityTrait.REWINDABLE)
-					.replace(distribution);
+                if (!F.isEmpty(rel.projects())) {
+                    corrIds = new HashSet<>(corrIds);
+                    corrIds.addAll(RexUtils.extractCorrelationIds(rel.projects()));
+                }
 
-				Set<CorrelationId> corrIds = RexUtils.extractCorrelationIds(rel.condition());
+                if (!corrIds.isEmpty())
+                    traits = traits.replace(CorrelationTrait.correlations(corrIds));
 
-				if (!F.isEmpty(rel.projects())) {
-					corrIds = new HashSet<>(corrIds);
-					corrIds.addAll(RexUtils.extractCorrelationIds(rel.projects()));
-				}
+                return new IgniteTableScan(rel.getCluster(), traits,
+                    rel.getTable(), rel.projects(), rel.condition(), rel.requiredColumns());
+            }
+        };
 
-				if (!corrIds.isEmpty())
-					traits = traits.replace(CorrelationTrait.correlations(corrIds));
+    /** */
+    private LogicalScanConverterRule(Class<T> clazz, String descPrefix) {
+        super(clazz, descPrefix);
+    }
 
-				return new IgniteTableScan(rel.getCluster(), traits,
-					rel.getTable(), rel.projects(), rel.condition(), rel.requiredColumns());
-			}
-		};
+    /** */
+    public static Mappings.TargetMapping createMapping(
+        List<RexNode> projects,
+        ImmutableBitSet requiredColumns,
+        int tableRowSize
+    ) {
+        if (projects != null) {
+            Mapping trimmingMapping = requiredColumns != null
+                ? Mappings.invert(Mappings.source(requiredColumns.asList(), tableRowSize))
+                : Mappings.createIdentity(tableRowSize);
 
-	/**
-	 *
-	 */
-	private LogicalScanConverterRule(Class<T> clazz, String descPrefix) {
-		super(clazz, descPrefix);
-	}
+            Map<Integer, Integer> mappingMap = new HashMap<>();
 
-	/**
-	 *
-	 */
-	public static Mappings.TargetMapping createMapping(
-		List<RexNode> projects,
-		ImmutableBitSet requiredColumns,
-		int tableRowSize
-	) {
-		if (projects != null) {
-			Mapping trimmingMapping = requiredColumns != null
-				? Mappings.invert(Mappings.source(requiredColumns.asList(), tableRowSize))
-				: Mappings.createIdentity(tableRowSize);
+            for (int i = 0; i < projects.size(); i++) {
+                RexNode rex = projects.get(i);
+                if (!(rex instanceof RexLocalRef))
+                    continue;
 
-			Map<Integer, Integer> mappingMap = new HashMap<>();
+                RexLocalRef ref = (RexLocalRef)rex;
 
-			for (int i = 0; i < projects.size(); i++) {
-				RexNode rex = projects.get(i);
-				if (!(rex instanceof RexLocalRef))
-					continue;
+                mappingMap.put(trimmingMapping.getSource(ref.getIndex()), i);
+            }
 
-				RexLocalRef ref = (RexLocalRef) rex;
+            return Mappings.target(
+                mappingMap,
+                tableRowSize,
+                projects.size()
+            );
+        }
 
-				mappingMap.put(trimmingMapping.getSource(ref.getIndex()), i);
-			}
+        if (requiredColumns != null)
+            return Mappings.target(requiredColumns.asList(), tableRowSize);
 
-			return Mappings.target(
-				mappingMap,
-				tableRowSize,
-				projects.size()
-			);
-		}
-
-		if (requiredColumns != null)
-			return Mappings.target(requiredColumns.asList(), tableRowSize);
-
-		return Mappings.createIdentity(tableRowSize);
-	}
+        return Mappings.createIdentity(tableRowSize);
+    }
 }

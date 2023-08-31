@@ -23,12 +23,15 @@ public class BasicTest {
 			try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args[0])) {
 				int populationCountA = Integer.parseInt(args[index + 1]);
 				int populationCountB = Integer.parseInt(args[index + 2]);
+				double aSkew = Double.parseDouble(args[index + 3]);
+				double bSkew = Double.parseDouble(args[index + 4]);
 				System.out.println("Starting data loading. Table A: " + populationCountA + ", Table B: " + populationCountB);
 				create(conn);
-				populate(conn, populationCountA, populationCountB);
+				populate(conn, populationCountA, populationCountB, aSkew, bSkew);
 				System.out.println("Completed data loading");
 			} catch (SQLException e) {
 				Logger.getLogger(BasicTest.class.getName()).severe(e.getMessage());
+				e.printStackTrace();
 			}
 
 		}
@@ -61,30 +64,47 @@ public class BasicTest {
 	}
 
 	public static void create(Connection conn) throws SQLException {
-		PreparedStatement a = conn.prepareStatement("DROP TABLE IF EXISTS table1; CREATE TABLE table1 (id int primary key, t1key int) WITH \"TEMPLATE=CacheA,CACHE_NAME=CacheA\"");
+//		PreparedStatement a = conn.prepareStatement("DROP TABLE IF EXISTS table1; CREATE TABLE table1 (id int, cacheKey int, t1key int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheA,CACHE_NAME=CacheA\"");
+		PreparedStatement a = conn.prepareStatement("DROP TABLE IF EXISTS table1; CREATE TABLE table1 (id int, cacheKey int, t1key int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheA,AFFINITY_KEY=cacheKey,CACHE_NAME=CacheA\"");
 		a.execute();
-		PreparedStatement b = conn.prepareStatement("DROP TABLE IF EXISTS table2; CREATE TABLE table2 (id int primary key, t2key int) WITH \"TEMPLATE=CacheB,CACHE_NAME=CacheB\"");
+//		PreparedStatement b = conn.prepareStatement("DROP TABLE IF EXISTS table2; CREATE TABLE table2 (id int, cacheKey int, t2key int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheB,CACHE_NAME=CacheB\"");
+		PreparedStatement b = conn.prepareStatement("DROP TABLE IF EXISTS table2; CREATE TABLE table2 (id int, cacheKey int, t2key int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheB,AFFINITY_KEY=cacheKey,CACHE_NAME=CacheB\"");
 		b.execute();
 		System.out.println("Tables created.");
 	}
 
-	public static void populate(Connection conn, int countA, int countB) throws SQLException {
+	public static void populate(Connection conn, int countA, int countB, double aSkew, double bSkew) throws SQLException {
 
-		PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, t1key) VALUES (?, ?)");
-		PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, t2key) VALUES (?, ?)");
+		PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, t1key, cacheKey) VALUES (?, ?, ?)");
+		PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, t2key, cacheKey) VALUES (?, ?, ?)");
 
+		ArrayList<Integer> aIds = new ArrayList<>();
+		ArrayList<Integer> bIds = new ArrayList<>();
 		int maxCount = Math.max(countA, countB);
+
+		aIds.add(0);
+
+		for (float i = 0; i <= 1; i += aSkew) {
+			aIds.add(((int) Math.round(Math.random() * 100000) + 1000));
+		}
+
+		bIds.add(((int) Math.round(Math.random() * 10000) + 1000));
+		for (float i = 0; i <= 1; i += bSkew) {
+			bIds.add(((int) Math.round(Math.random() * 100000) + 1000));
+		}
 
 		for (int i = 0; i < maxCount; i++) {
 			if (i < countA) {
 				a.setInt(1, i);
 				a.setInt(2, (int) Math.round(Math.random() * 1000));
+				a.setInt(3, aIds.get((int) Math.floor(((double) i / maxCount) / aSkew)));
 				a.addBatch();
 			}
 
 			if (i < countB) {
 				b.setInt(1, i + maxCount);
 				b.setInt(2, (int) Math.round(Math.random() * 1000));
+				b.setInt(3, bIds.get((int) Math.floor(((double) i / maxCount) / bSkew)));
 				b.addBatch();
 			}
 

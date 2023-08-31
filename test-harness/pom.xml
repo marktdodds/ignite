@@ -41,6 +41,11 @@
 			<artifactId>ignite-spring</artifactId>
 			<version>${revision}</version>
 		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>ignite-calcite</artifactId>
+			<version>${revision}</version>
+		</dependency>
 	</dependencies>
 
 </project>

@@ -45,11 +45,11 @@ logfile="logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log"
 
 # Compile the modules
 if [[ $compile -eq 1 ]]; then
-  ./mvnw -pl $modules compile
+  ./mvnw -Drelease -pl $modules compile
 fi
 
 # Generate the classpath
-./mvnw -pl :ignite-runner dependency:build-classpath -Dmdep.outputFile="$cp_file"
+./mvnw -Drelease -pl :ignite-runner dependency:build-classpath -Dmdep.outputFile="$cp_file"
 
 # Export the classpath
 export CLASSPATH=$(find . -name classes -type d | tr "\n" ":")$(cat $cp_file | tr ":" "\n" | grep -v "ignite.*2\.16" | tr "\n" ":")

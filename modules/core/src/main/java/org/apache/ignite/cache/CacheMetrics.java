@@ -25,6 +25,8 @@ import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.mxbean.TransactionsMXBean;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.UUID;
+
 /**
  * Cache metrics used to obtain statistics on cache itself.
  * Use {@link IgniteCache#metrics()} to obtain metrics for a cache.
@@ -332,6 +334,13 @@ public interface CacheMetrics {
      * @return Cache size.
      */
     public long getCacheSize();
+
+    /**
+     * Get the cache size for a specific node
+     * @param nodeId The {@link org.apache.ignite.cluster.ClusterNode#id()} for the node
+     * @return Cache size on {nodeId}
+     */
+    public long getCacheSize(UUID nodeId);
 
     /**
      * Gets number of keys in the cache, possibly with {@code null} values.

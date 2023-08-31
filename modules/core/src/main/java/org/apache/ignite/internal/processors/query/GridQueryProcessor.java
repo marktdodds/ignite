@@ -148,6 +148,7 @@ import org.apache.ignite.marshaller.jdk.JdkMarshaller;
 import org.apache.ignite.spi.discovery.DiscoveryDataBag;
 import org.apache.ignite.spi.indexing.IndexingQueryFilter;
 import org.apache.ignite.thread.IgniteThread;
+import org.apache.ignite.util.InternalTimer;
 import org.jetbrains.annotations.Nullable;
 
 import static java.util.Collections.emptySet;
@@ -3851,6 +3852,8 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                 if (log.isTraceEnabled())
                     log.trace("Query execution [startTime=" + startTime + ", duration=" + duration +
                         ", fail=" + failed + ", res=" + res + ']');
+
+                InternalTimer.get("ExecutionTimer").log("Execution Finished", System.out);
             }
         }
     }

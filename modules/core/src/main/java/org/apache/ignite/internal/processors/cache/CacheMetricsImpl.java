@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheMetrics;
@@ -535,6 +536,13 @@ public class CacheMetricsImpl implements CacheMetrics {
     @Override public long getCacheSize() {
         return cacheSize.value();
     }
+
+    /** {@inheritDoc} */
+    @Override public long getCacheSize(UUID nodeId) {
+        if (nodeId.equals(cctx.localNodeId())) return cacheSize.value();
+        return 0;
+    }
+
 
     /** {@inheritDoc} */
     @Override public int getKeySize() {
@@ -1656,6 +1664,14 @@ public class CacheMetricsImpl implements CacheMetrics {
      */
     public void addIndexRebuildKeyProcessed(long val) {
         idxRebuildKeyProcessed.add(val);
+    }
+
+    /**
+     * Get the local node id
+     * @return {@link UUID} of node where stats were gathered
+     */
+    public UUID getLocalNodeId() {
+        return cctx.localNodeId();
     }
 
     /** {@inheritDoc} */

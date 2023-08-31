@@ -18,8 +18,10 @@
 package org.apache.ignite.platform;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.cluster.ClusterNode;
@@ -476,6 +478,14 @@ public class PlatformCacheWriteMetricsTask extends ComputeTaskAdapter<Long, Obje
         /** {@inheritDoc} */
         @Override public long getCacheSize() {
             return 65;
+        }
+
+        /** {@inheritDoc} */
+        @Override public long getCacheSize(UUID nodeId) {
+            Map<UUID, Long> m = new HashMap<>();
+            m.put(UUID.fromString("NODE_1"), 30L);
+            m.put(UUID.fromString("NODE_2"), 35L);
+            return m.getOrDefault(nodeId, 0L);
         }
 
         /** {@inheritDoc} */
