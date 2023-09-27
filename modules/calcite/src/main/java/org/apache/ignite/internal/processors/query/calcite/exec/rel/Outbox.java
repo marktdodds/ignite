@@ -35,6 +35,7 @@ import org.apache.ignite.internal.processors.query.calcite.trait.Destination;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.util.InternalDebug;
 
 /**
  * A part of exchange.
@@ -67,6 +68,9 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     /** */
     private boolean exchangeFinished;
 
+    /** */
+    private final InternalDebug messageCounter;
+
     /**
      * @param ctx Execution context.
      * @param exchange Exchange service.
@@ -90,6 +94,8 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
         this.targetFragmentId = targetFragmentId;
         this.exchangeId = exchangeId;
         this.dest = dest;
+
+        messageCounter = InternalDebug.once("OutboxMessageCounter_" + queryId() + "_" + ctx.fragmentId() + "->" + targetFragmentId);
     }
 
     /** {@inheritDoc} */
@@ -203,6 +209,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     /** */
     private void sendBatch(UUID nodeId, int batchId, boolean last, List<Row> rows) throws IgniteCheckedException {
         exchange.sendBatch(nodeId, queryId(), targetFragmentId, exchangeId, batchId, last, rows);
+        messageCounter.counterAdd(rows.size());
     }
 
     /** */
@@ -263,6 +270,8 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
 
                 exchangeFinished = true;
             }
+
+            messageCounter.logCounter("Total Iterations", System.out);
         }
     }
 

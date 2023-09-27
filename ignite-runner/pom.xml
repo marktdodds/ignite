@@ -33,6 +33,11 @@
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
+			<artifactId>ignite-calcite</artifactId>
+			<version>${revision}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
 			<artifactId>ignite-core</artifactId>
 			<version>${revision}</version>
 		</dependency>
@@ -47,9 +52,9 @@
 			<version>${revision}</version>
 		</dependency>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>ignite-calcite</artifactId>
-			<version>${revision}</version>
+			<groupId>org.javassist</groupId>
+			<artifactId>javassist</artifactId>
+			<version>${javassist.version}</version>
 		</dependency>
 	</dependencies>
 

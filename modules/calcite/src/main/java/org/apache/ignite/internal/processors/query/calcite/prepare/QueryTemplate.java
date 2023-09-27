@@ -102,7 +102,11 @@ public class QueryTemplate {
     }
 
     /** */
-    private List<Fragment> replace(List<Fragment> fragments, Fragment fragment, List<Fragment> replacement) {
+    protected static List<Fragment> replace(List<Fragment> fragments, Fragment fragment, List<Fragment> replacement) {
+        return replace(fragments, fragment, replacement, false);
+    }
+
+    protected static List<Fragment> replace(List<Fragment> fragments, Fragment fragment, List<Fragment> replacement, boolean preserveMapping) {
         assert !F.isEmpty(replacement);
 
         Map<Long, Long> newTargets = new HashMap<>();
@@ -125,7 +129,8 @@ public class QueryTemplate {
                     sender = new IgniteSender(sender.getCluster(), sender.getTraitSet(),
                         sender.getInput(), sender.exchangeId(), newTargetId, sender.distribution());
 
-                    fragment0 = new Fragment(fragment0.fragmentId(), sender, fragment0.remotes());
+                    fragment0 = preserveMapping ? new Fragment(fragment0.fragmentId(), sender, fragment0.remotes(), null, fragment0.mapping())
+                        : new Fragment(fragment0.fragmentId(), sender, fragment0.remotes());
                 }
             }
 

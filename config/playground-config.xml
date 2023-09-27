@@ -23,6 +23,7 @@
                             http://www.springframework.org/schema/beans/spring-beans.xsd">
 	<bean class="org.apache.ignite.configuration.IgniteConfiguration">
 		<property name="peerClassLoadingEnabled" value="true"/>
+		<property name="metricsLogFrequency" value="60000"/>
 
 		<property name="cacheConfiguration">
 			<list>

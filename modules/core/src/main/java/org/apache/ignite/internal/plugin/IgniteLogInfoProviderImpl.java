@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -53,6 +54,7 @@ import org.apache.ignite.internal.GridLoggerProxy;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteKernal;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegion;
 import org.apache.ignite.internal.processors.cache.persistence.IgniteCacheDatabaseSharedManager;
 import org.apache.ignite.internal.processors.port.GridPortRecord;
@@ -759,6 +761,14 @@ public class IgniteLogInfoProviderImpl implements IgniteLogInfoProvider {
             for (Map.Entry<String, ? extends ExecutorService> entry : customExecSvcs.entrySet())
                 msg.nl().a("    ^-- ").a(createExecutorDescription(entry.getKey(), entry.getValue()));
         }
+
+        msg.nl().a("Active Cache Sizes:").nl();
+        ctx.cache().caches().forEach(c -> {
+            msg.a("    >> ").a(c.name()).a(" size: ").a(c.localMetrics().getCacheSize());
+            List<GridDhtLocalPartition> partitions = c.context().topology().localPartitions();
+            if (!partitions.isEmpty()) msg.a(", first partition id: ").a(c.context().topology().localPartitions().get(0).id());
+            msg.nl();
+        });
 
         log.info(msg.toString());
 

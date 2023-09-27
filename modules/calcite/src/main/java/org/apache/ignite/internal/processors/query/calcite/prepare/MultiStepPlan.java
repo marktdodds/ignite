@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
 import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapping;
@@ -70,5 +71,5 @@ public interface MultiStepPlan extends QueryPlan {
      * @param ctx Planner context
      * @param gcp
      */
-    default void optimize(MappingService mappingService, MappingQueryContext ctx, GridCacheProcessor gcp) {}
+    default void optimize(MappingService mappingService, MappingQueryContext ctx, GridCacheProcessor gcp, GridDiscoveryManager gdm) {}
 }

@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
+import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.query.calcite.metadata.MappingService;
 import org.jetbrains.annotations.Nullable;
@@ -47,7 +48,7 @@ public class MultiStepQueryPlan extends AbstractMultiStepPlan {
     }
 
     /** {@inheritDoc} */
-    @Override public void optimize(MappingService mappingService, MappingQueryContext ctx, GridCacheProcessor gcp) {
-        executionPlan = executionPlan.optimize(mappingService, ctx, gcp);
+    @Override public void optimize(MappingService mappingService, MappingQueryContext ctx, GridCacheProcessor gcp, GridDiscoveryManager gdm) {
+        executionPlan = executionPlan.optimize(mappingService, ctx, gcp, gdm);
     }
 }

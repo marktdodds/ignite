@@ -37,6 +37,7 @@ import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.calcite.CalciteQueryEngineConfiguration;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
@@ -95,7 +96,7 @@ import org.apache.ignite.internal.processors.query.calcite.util.ListFieldsQueryC
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.util.InternalTimer;
+import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.Nullable;
 
 import static java.util.Collections.singletonList;
@@ -172,6 +173,9 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
     /** */
     private GridCacheProcessor gridCacheProcessor;
+
+    /** */
+    private GridDiscoveryManager gridDiscoveryManager;
 
     /**
      * @param ctx Kernal.
@@ -389,8 +393,14 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         return memoryTracker;
     }
 
+    /** */
     private void gridCacheProcessor(GridCacheProcessor gcp) {
         gridCacheProcessor = gcp;
+    }
+
+    /** */
+    private void gridDiscoveryManager(GridDiscoveryManager gdm) {
+        gridDiscoveryManager = gdm;
     }
 
     /** {@inheritDoc} */
@@ -402,6 +412,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         iteratorsHolder(new ClosableIteratorsHolder(log));
 
         gridCacheProcessor(ctx.cache());
+        gridDiscoveryManager(ctx.discovery());
 
         CalciteQueryProcessor proc = Objects.requireNonNull(
             Commons.lookupComponent(ctx, CalciteQueryProcessor.class));
@@ -550,20 +561,21 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         MappingQueryContext mapCtx = Commons.mapContext(locNodeId, topologyVersion());
         plan.init(mappingSvc, mapCtx);
 
-        InternalTimer timer = InternalTimer.get("ExecutionTimer");
+        InternalDebug timer = InternalDebug.once("OptimizationTimer");
         timer.start();
 
-        if (System.getenv("MD_USE_ENHANCEMENTS") != null) {
-            plan.optimize(mappingSvc, mapCtx, gridCacheProcessor);
+        if (System.getenv("MD_USE_ENHANCEMENTS") != null && "true".equals(System.getenv("MD_USE_ENHANCEMENTS"))) {
+            plan.optimize(mappingSvc, mapCtx, gridCacheProcessor, gridDiscoveryManager);
             timer.log("Optimizaion Time", System.out);
+        }
 
-            plan.fragments().forEach(f -> {
+        List<Fragment> fragments = plan.fragments();
+
+        if (System.getenv("MD_QUERY_LOGGING") != null) {
+            fragments.forEach(f -> {
                 System.out.printf("Node IDS: %s, Fragment Id: %s, fragment: %s\n\n", f.mapping().nodeIds(), f.fragmentId(), f.serialized());
             });
         }
-
-
-        List<Fragment> fragments = plan.fragments();
 
         // Local execution
         Fragment fragment = F.first(fragments);
