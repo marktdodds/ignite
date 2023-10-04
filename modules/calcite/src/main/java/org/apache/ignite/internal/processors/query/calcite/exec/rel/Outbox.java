@@ -96,6 +96,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
         this.dest = dest;
 
         messageCounter = InternalDebug.once("OutboxMessageCounter_" + queryId() + "_" + ctx.fragmentId() + "->" + targetFragmentId);
+        messageCounter.start();
     }
 
     /** {@inheritDoc} */
@@ -272,6 +273,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
             }
 
             messageCounter.logCounter("Total Iterations", System.out);
+            messageCounter.log("Outbox Completeled", System.out);
         }
     }
 

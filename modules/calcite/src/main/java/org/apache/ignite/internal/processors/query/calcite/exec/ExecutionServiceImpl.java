@@ -577,6 +577,8 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             });
         }
 
+        System.out.println(fragments.size());
+
         // Local execution
         Fragment fragment = F.first(fragments);
 
