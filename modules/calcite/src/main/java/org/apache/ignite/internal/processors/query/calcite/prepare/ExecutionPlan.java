@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
@@ -39,35 +40,74 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.IgniteMdFrag
 import org.apache.ignite.internal.processors.query.calcite.metadata.MappingService;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
+import org.apache.ignite.util.InternalDebug;
+import org.jetbrains.annotations.NotNull;
 
 /**
  *
  */
 class ExecutionPlan {
-    /** */
+    /**  */
     private final AffinityTopologyVersion ver;
 
-    /** */
+    /**  */
     private final ImmutableList<Fragment> fragments;
 
-    /** */
+    /**  */
     ExecutionPlan(AffinityTopologyVersion ver, List<Fragment> fragments) {
         this.ver = ver;
         this.fragments = ImmutableList.copyOf(fragments);
     }
 
-    /** */
+    /**  */
     public AffinityTopologyVersion topologyVersion() {
         return ver;
     }
 
-    /** */
+    /**  */
     public List<Fragment> fragments() {
         return fragments;
     }
 
+    private static class SiteOption implements Comparable<SiteOption> {
+
+        private final UUID nodeId;
+        private final int priority;
+
+        // CPU load as % of total capacity
+        private final double cpuLoad;
+
+        private SiteOption(UUID nodeId, int priority, double cpuLoad) {
+            this.nodeId = nodeId;
+            this.priority = priority;
+            this.cpuLoad = cpuLoad;
+        }
+
+        @Override
+        public int compareTo(@NotNull ExecutionPlan.SiteOption o) {
+            // within a 5% buffer we take the priority into account
+            if (priority < o.priority) {
+                return Double.compare(cpuLoad * 1.1, o.cpuLoad);
+            } else if (priority > o.priority) {
+                return Double.compare(o.cpuLoad * 1.1, cpuLoad);
+            }
+            return Double.compare(cpuLoad, o.cpuLoad);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof SiteOption && compareTo((SiteOption) o) == 0;
+        }
+
+        @Override
+        public String toString() {
+            return "{id: " + nodeId + ", cpuLoad: " + cpuLoad + ", priority: " + priority + "}";
+        }
+    }
+
     public ExecutionPlan optimize(MappingService mappingService, MappingQueryContext ctx, GridCacheProcessor gcp, GridDiscoveryManager gdm) {
         RelMetadataQuery mq = ctx.cluster().getMetadataQuery();
+
         // LinkedHashMap maintained order so we can recreate the Fragments list later
         LinkedHashMap<Long, Fragment> fragmentMap = new LinkedHashMap<>();
         Map<Long, List<IgniteCacheTable>> fragmentCaches = new HashMap<>();
@@ -89,56 +129,72 @@ class ExecutionPlan {
 
         for (Fragment f : fragmentMap.values()) {
             if (f.root() instanceof IgniteReceiver || !f.single()) continue;
+            assert f.mapping().nodeIds().size() == 1;
+
             FragmentMapping rootMapping = IgniteMdFragmentMapping._fragmentMapping(f.root(), mq, ctx);
 
-            System.out.printf("[Fragment %s] Est. Res Set: %s\n", f.fragmentId(), mq.getRowCount(f.root()));
-            Map<UUID, Double> remoteSiteSizes = new HashMap<>();
+//            System.out.printf("[Fragment %s] Est. Res Set: %s\n", f.fragmentId(), mq.getRowCount(f.root()));
+            Map<UUID, SiteOption> siteOptions = new HashMap<>();
+            UUID currentSite = f.mapping().nodeIds().get(0);
+            siteOptions.put(currentSite, new SiteOption(currentSite, 0, gdm.node(currentSite).metrics().getCurrentCpuLoad()));
 
             try {
                 for (IgniteReceiver receiver : f.remotes()) {
                     Fragment input = fragmentMap.get(receiver.sourceFragmentId());
                     FragmentMapping mapping = rootMapping.colocate(input.mapping()).finalize(executionNodes);
 
-                    UUID bestSite = null;
-                    double highestTransfer = 0;
+//                    UUID bestSite = null;
+//                    double highestTransfer = 0;
 
                     for (UUID site : mapping.nodeIds()) {
-                        double totalRows = 0;
-                        for (IgniteCacheTable t : fragmentCaches.get(input.fragmentId())) {
-                            long size = cacheMetrics.get(t.descriptor().cacheInfo().name()).getCacheSize(site);
-                            totalRows += size;
-                            System.out.printf("[Site %s | %s] %s rows, ", site, t.descriptor().cacheInfo().name(), size);
-                        }
-
-                        if (totalRows > highestTransfer) {
-                            bestSite = site;
-                            highestTransfer = totalRows;
-                        }
+                        siteOptions.putIfAbsent(site, new SiteOption(site, 1, gdm.node(site).metrics().getCurrentCpuLoad()));
                     }
+
+//                    for (UUID site : mapping.nodeIds()) {
+//                        double totalRows = 0;
+//                        for (IgniteCacheTable t : fragmentCaches.get(input.fragmentId())) {
+//                            long size = cacheMetrics.get(t.descriptor().cacheInfo().name()).getCacheSize(site);
+//                            totalRows += size;
+//                            System.out.printf("[Site %s | %s] %s rows, ", site, t.descriptor().cacheInfo().name(), size);
+//                        }
+//
+//                        if (totalRows > highestTransfer) {
+//                            bestSite = site;
+//                            highestTransfer = totalRows;
+//                        }
+//                    }
 
                     // No valid remotes
-                    if (bestSite == null) continue;
+//                    if (bestSite == null) continue;
 
                     // Record the site with the higest transfer cost for this remote
-                    if (remoteSiteSizes.getOrDefault(bestSite, 0D) < highestTransfer) {
-                        remoteSiteSizes.put(bestSite, highestTransfer);
-                        }
-                    }
-
-                UUID bestSite = null;
-                double highestRowTransfer = mq.getRowCount(f.root());
-
-                for (Map.Entry<UUID, Double> e : remoteSiteSizes.entrySet()) {
-                    System.out.printf("[TS %s] %s rows\n", e.getKey(), e.getValue());
-                    // TODO make this smarter with load based selection if theres multiple options
-                    if (e.getValue() > highestRowTransfer) {
-                        bestSite = e.getKey();
-                        highestRowTransfer = e.getValue();
-                    }
+//                    if (remoteSiteSizes.getOrDefault(bestSite, 0D) < highestTransfer) {
+//                        remoteSiteSizes.put(bestSite, highestTransfer);
+//                        }
                 }
 
-                if (bestSite != null) {
-                    System.out.printf(">> [REMAPPED] fragment: %s, before: %s, best site: %s\n\n", f.fragmentId(), f.mapping().nodeIds(), bestSite);
+                List<SiteOption> sorted = siteOptions
+                    .values()
+                    .stream()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+                InternalDebug.log(sorted.toString());
+                UUID bestSite = sorted.get(0).nodeId;
+
+//                double highestRowTransfer = mq.getRowCount(f.root());
+//
+//                for (UUID site : siteOptions) {
+//                    System.out.printf("[TS %s] %s rows\n", e.getKey(), e.getValue());
+//                    // TODO make this smarter with load based selection if theres multiple options
+//                    if (e.getValue() > highestRowTransfer) {
+//                        bestSite = e.getKey();
+//                        highestRowTransfer = e.getValue();
+//                    }
+//                }
+
+                if (bestSite.compareTo(currentSite) != 0) {
+                    InternalDebug.log(String.format(">> [REMAPPED] fragment: %s, before: %s, best site: %s\n\n", f.fragmentId(), f.mapping().nodeIds(), bestSite));
                     fragmentMap.put(f.fragmentId(), f.remap(FragmentMapping.create(bestSite).colocate(rootMapping).finalize(executionNodes)));
                 }
 

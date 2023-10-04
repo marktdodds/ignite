@@ -29,6 +29,7 @@ import org.apache.ignite.internal.processors.query.schema.AbstractSchemaChangeLi
 import org.apache.ignite.internal.processors.query.schema.management.IndexDescriptor;
 import org.apache.ignite.internal.processors.subscription.GridInternalSubscriptionProcessor;
 import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashMap;
+import org.apache.ignite.util.InternalDebug;
 
 /**
  *
@@ -77,7 +78,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
         Map<CacheKey, QueryPlan> cache = this.cache;
 
         if (System.getenv("MD_DISABLE_QUERY_CACHE") != null) {
-            System.out.println(">>> Cache Disabled");
+            InternalDebug.log(">>> Cache Disabled");
             cache.remove(key);
         }
         QueryPlan plan = cache.computeIfAbsent(key, k -> planSupplier.get());
@@ -90,7 +91,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
         Map<CacheKey, QueryPlan> cache = this.cache;
         QueryPlan plan = cache.get(key);
         if (System.getenv("MD_DISABLE_QUERY_CACHE") != null) {
-            System.out.println(">>> Cache Disabled");
+            InternalDebug.log(">>> Cache Disabled");
             return null;
         }
         return plan != null ? plan.copy() : null;

@@ -39,6 +39,7 @@ import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactor
 import org.apache.ignite.internal.processors.query.calcite.util.AbstractService;
 import org.apache.ignite.internal.processors.query.calcite.util.TypeUtils;
 import org.apache.ignite.internal.util.typedef.T2;
+import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.Nullable;
 
 import static java.util.Collections.singletonList;
@@ -154,7 +155,7 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
         // Extract parameters meta.
         FieldsMetadata params = DynamicParamTypeExtractor.go(igniteRel);
 
-        System.out.println(igniteRel.explain());
+        InternalDebug.log(igniteRel.explain());
 
         // Split query plan to query fragments.
         List<Fragment> fragments = new Splitter().go(igniteRel);

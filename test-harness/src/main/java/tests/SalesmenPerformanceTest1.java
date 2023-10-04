@@ -26,9 +26,9 @@ public class SalesmenPerformanceTest1 implements PerformanceTest {
     }
 
     @Override
-    public PreparedStatement getTestQuery(Connection conn) throws SQLException {
-        return conn.prepareStatement("SELECT * FROM table1 INNER JOIN table2 ON table1.id = table2.salesmenId " +
-            "WHERE table2.salesmenId in (1,2,3,4,5)");
+    public String getTestQuery() {
+        return "SELECT * FROM table1 INNER JOIN table2 ON table1.id = table2.salesmenId " +
+            "WHERE table2.salesmenId in (1,2,3,4,5)";
     }
 
     @Override

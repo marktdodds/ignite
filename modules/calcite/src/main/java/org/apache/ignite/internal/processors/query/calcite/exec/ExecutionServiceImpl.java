@@ -571,11 +571,13 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
         List<Fragment> fragments = plan.fragments();
 
-        if (System.getenv("MD_QUERY_LOGGING") != null) {
+        if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
             fragments.forEach(f -> {
                 System.out.printf("Node IDS: %s, Fragment Id: %s, fragment: %s\n\n", f.mapping().nodeIds(), f.fragmentId(), f.serialized());
             });
         }
+
+        System.out.printf("Root Node Id: %s, Fragment: %s\n", fragments.get(0).mapping().nodeIds(), fragments.get(0).serialized());
 
         // Local execution
         Fragment fragment = F.first(fragments);

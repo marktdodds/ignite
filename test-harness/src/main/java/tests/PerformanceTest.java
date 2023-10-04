@@ -9,20 +9,44 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 public interface PerformanceTest {
 
-    class TestResult {
-        public final long resultCount;
-        public final long queryDuration;
-        public final long fetchDuration;
+    class Pair<T1, T2> {
 
-        public TestResult(long resultCount, long fetchDuration, long queryDuration) {
-            this.resultCount = resultCount;
-            this.queryDuration = queryDuration;
-            this.fetchDuration = fetchDuration;
+        T1 fst;
+        T2 snd;
+
+        public Pair(T1 f, T2 s) {
+            fst = f;
+            snd = s;
+        }
+    }
+
+    class TestResult {
+        private final List<Long> resultCount = new ArrayList<>();
+        private final List<Long> queryDuration = new ArrayList<>();
+        private final List<Long> fetchDuration = new ArrayList<>();
+
+        public void add(long resultCount, long fetchDuration, long queryDuration) {
+            this.getResultCount().add(resultCount);
+            this.getFetchDuration().add(fetchDuration);
+            this.getQueryDuration().add(queryDuration);
+        }
+
+        public List<Long> getResultCount() {
+            return resultCount;
+        }
+
+        public List<Long> getQueryDuration() {
+            return queryDuration;
+        }
+
+        public List<Long> getFetchDuration() {
+            return fetchDuration;
         }
     }
 
@@ -85,29 +109,60 @@ public interface PerformanceTest {
             int testIterations = Integer.parseInt(args.get(index + 1));
             int fetchSize = Integer.parseInt(args.get(index + 2));
             boolean countResult = args.contains("--countResult");
+            int threads = args.contains("-t") ? Integer.parseInt(args.get(args.indexOf("-t") + 1)) : 1;
 
-            ArrayList<Long> queryDurations = new ArrayList<>();
-            ArrayList<Long> fetchDurations = new ArrayList<>();
 
             System.out.printf("Fetch size: %s\n", fetchSize);
 
-            for (int i = 0; i < testIterations; i++) {
-                try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args.get(0))) {
-                    TestResult result = execute(conn, testIterations, fetchSize, countResult);
-                    System.out.format("[Test %s/%s] Result count %s; Query Duration %s", i + 1, testIterations, result.resultCount, result.queryDuration);
-                    if (countResult) System.out.format(", Fetch duration %s", result.fetchDuration);
-                    System.out.format("\n");
-                    queryDurations.add(result.queryDuration);
-                    if (countResult) fetchDurations.add(result.fetchDuration);
-                } catch (SQLException e) {
-                    Logger.getLogger(PerformanceTest.class.getName()).severe(e.getMessage());
+            List<Pair<Thread, Execution>> executions = new ArrayList<>();
+
+            try {
+                for (int i = 0; i < threads; i++) {
+                    Execution e = new Execution(getTestQuery(), "jdbc:ignite:thin://" + args.get(0), fetchSize, countResult, testIterations);
+                    Thread t = new Thread(e);
+                    t.start();
+                    executions.add(new Pair<>(t, e));
+                    log().info("Started thread " + i);
                 }
+
+                StringBuilder res = new StringBuilder();
+                res.append(String.format("Test Results:\n| %-5s| %-20s| %-20s| %-20s|\n", "ID", "Test Count", "Averge Query Time", "Average Fetch Time"));
+                List<Double> queryTimes = new ArrayList<>();
+                List<Double> fetchTimes = new ArrayList<>();
+
+                for (int i = 0; i < threads; i++) {
+                    Thread t = executions.get(i).fst;
+                    Execution e = executions.get(i).snd;
+                    t.join();
+                    e.complete();
+
+                    double fetchTime = e.avgFetchTime();
+                    double queryTime = e.avgQueryTime();
+
+                    fetchTimes.add(fetchTime);
+                    queryTimes.add(queryTime);
+
+                    res.append(String.format("| %-5s", i))
+                        .append(String.format("| %-20s", e.avgTestCount()))
+                        .append(String.format("| %-20s", queryTime))
+                        .append(String.format("| %-20s|\n", fetchTime));
+                }
+                res.append(String.format("| %-5s", "Cum"))
+                    .append(String.format("| %-20s", "NA"))
+                    .append(String.format("| %-20s", queryTimes.stream().mapToDouble(Double::doubleValue).average().getAsDouble()))
+                    .append(String.format("| %-20s|\n", fetchTimes.stream().mapToDouble(Double::doubleValue).average().getAsDouble()));
+
+                log().info(res.toString());
+
+            } catch (SQLException | InterruptedException e) {
+                log().severe(e.getMessage());
             }
 
-            System.out.format("Tests completed. Average duration: %s", queryDurations.stream().mapToLong(Long::longValue).average().getAsDouble());
-            if (countResult) System.out.format(", Average fetch duration: %s", fetchDurations.stream().mapToLong(Long::longValue).average().getAsDouble());
-            System.out.format("\n");
         }
+    }
+
+    default Logger log() {
+        return Logger.getLogger(getClass().getName());
     }
 
     void create(Connection conn) throws SQLException;
@@ -129,22 +184,68 @@ public interface PerformanceTest {
         }
     }
 
-    PreparedStatement getTestQuery(Connection conn) throws SQLException;
+    String getTestQuery();
 
-    default TestResult execute(Connection conn, int count, int fetchSize, boolean countResult) throws SQLException {
-        PreparedStatement stmt = getTestQuery(conn);
-        stmt.setFetchSize(fetchSize);
-        long start = new Date().getTime();
-        stmt.execute();
-        long queryDuration = new Date().getTime() - start;
-        ResultSet result = stmt.getResultSet();
-        int resultCount = 0;
-        if (countResult) {
-            while (result.next()) {
-                resultCount++;
+    class Execution implements Runnable {
+
+        private final int iterations;
+        private final String query;
+        private final int fetchSize;
+        private final boolean countResult;
+        private final Connection conn;
+        TestResult result = new TestResult();
+
+
+        public Execution(String query, String connUrl, int fetchSize, boolean countResult, int iterations) throws SQLException {
+            this.query = query;
+            this.fetchSize = fetchSize;
+            this.countResult = countResult;
+            this.iterations = iterations;
+            this.conn = DriverManager.getConnection(connUrl);
+        }
+
+        public void complete() throws SQLException {
+            conn.close();
+        }
+
+        @Override
+        public void run() {
+            try {
+                for (int i = 0; i < iterations; i++) {
+                    PreparedStatement stmt = conn.prepareStatement(query);
+                    stmt.setFetchSize(fetchSize);
+                    long start = new Date().getTime();
+                    stmt.execute();
+                    long queryDuration = new Date().getTime() - start;
+                    ResultSet result = stmt.getResultSet();
+                    int resultCount = 0;
+                    if (countResult) {
+                        while (result.next()) {
+                            resultCount++;
+                        }
+                    }
+                    long fetchDuration = new Date().getTime() - start - queryDuration;
+                    this.result.add(resultCount, fetchDuration, queryDuration);
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
             }
         }
-        long fetchDuration = new Date().getTime() - start - queryDuration;
-        return new TestResult(resultCount, queryDuration, fetchDuration);
+
+        public double avgTestCount() {
+            OptionalDouble d = result.resultCount.stream().mapToLong(Long::longValue).average();
+            return d.isPresent() ? d.getAsDouble() : 0D;
+        }
+
+        public double avgQueryTime() {
+            OptionalDouble d = result.queryDuration.stream().mapToLong(Long::longValue).average();
+            return d.isPresent() ? d.getAsDouble() : 0D;
+        }
+
+        public double avgFetchTime() {
+            OptionalDouble d = result.fetchDuration.stream().mapToLong(Long::longValue).average();
+            return d.isPresent() ? d.getAsDouble() : 0D;
+        }
     }
 }

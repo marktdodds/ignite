@@ -35,7 +35,7 @@ public class InternalDebug {
     }
 
     public void log(String msg, PrintStream str) {
-//        if (System.getenv("MD_QUERY_LOGGING") == null) return;
+        if (!"true".equalsIgnoreCase(System.getenv("MD_QUERY_LOGGING"))) return;
         if (startTime == 0L) return;
         long time = System.currentTimeMillis();
         str.printf("[TIMER LOG || %s] %s: %sms\n", name, msg, time - startTime);
@@ -59,7 +59,9 @@ public class InternalDebug {
     }
 
     public void logCounter(String msg, PrintStream str) {
-        str.printf("[TIMER LOG || %s] %s: %s\n", name, msg, getCounter());
+        if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
+            str.printf("[TIMER LOG || %s] %s: %s\n", name, msg, getCounter());
+        }
     }
 
     public long getCounter() {
@@ -68,5 +70,11 @@ public class InternalDebug {
 
     public void setCounter(long counter) {
         this.counter = counter;
+    }
+
+    public static void log(String message) {
+        if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
+            System.out.println(message);
+        }
     }
 }
