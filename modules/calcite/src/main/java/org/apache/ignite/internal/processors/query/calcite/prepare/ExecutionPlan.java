@@ -87,9 +87,9 @@ class ExecutionPlan {
         public int compareTo(@NotNull ExecutionPlan.SiteOption o) {
             // within a 5% buffer we take the priority into account
             if (priority < o.priority) {
-                return Double.compare(cpuLoad * 1.1, o.cpuLoad);
+                return Double.compare(cpuLoad * 1.1 - 0.2, o.cpuLoad);
             } else if (priority > o.priority) {
-                return Double.compare(o.cpuLoad * 1.1, cpuLoad);
+                return Double.compare(cpuLoad, o.cpuLoad * 1.1 - 0.2);
             }
             return Double.compare(cpuLoad, o.cpuLoad);
         }

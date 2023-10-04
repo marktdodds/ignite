@@ -577,8 +577,6 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             });
         }
 
-        System.out.printf("Root Node Id: %s, Fragment: %s\n", fragments.get(0).mapping().nodeIds(), fragments.get(0).serialized());
-
         // Local execution
         Fragment fragment = F.first(fragments);
 
