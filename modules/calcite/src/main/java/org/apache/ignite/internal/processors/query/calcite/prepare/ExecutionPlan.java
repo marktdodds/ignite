@@ -218,8 +218,8 @@ class ExecutionPlan {
             throw new IgniteSQLException("Failed to optimize query.");
         }
 
-        return new ExecutionPlan(ver, newFragments);
-//        return this;
+//        return new ExecutionPlan(ver, newFragments);
+        return this;
     }
 
 }
