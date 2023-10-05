@@ -733,10 +733,10 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             final BaseQueryContext qctx = createQueryContext(Contexts.empty(), msg.schema());
 
 
-            QueryPlan qryPlan = queryPlanCache().queryPlan(
+            QueryPlan qryPlan = /*queryPlanCache().queryPlan(
                 new CacheKey(msg.schema(), msg.root()),
                 () -> prepareFragment(qctx, msg.root())
-            );
+            );*/ prepareFragment(qctx, msg.root());
 
             assert qryPlan.type() == QueryPlan.Type.FRAGMENT;
 

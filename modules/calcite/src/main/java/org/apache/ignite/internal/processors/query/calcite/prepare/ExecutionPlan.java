@@ -110,18 +110,18 @@ class ExecutionPlan {
 
         // LinkedHashMap maintained order so we can recreate the Fragments list later
         LinkedHashMap<Long, Fragment> fragmentMap = new LinkedHashMap<>();
-        Map<Long, List<IgniteCacheTable>> fragmentCaches = new HashMap<>();
-        Map<String, CacheMetrics> cacheMetrics = new HashMap<>();
+//        Map<Long, List<IgniteCacheTable>> fragmentCaches = new HashMap<>();
+//        Map<String, CacheMetrics> cacheMetrics = new HashMap<>();
 
         fragments().forEach(f -> {
             // This ensures we are dealing with fresh fragments and won't mess up any other cached values
             fragmentMap.put(f.fragmentId(), f.remap(f.mapping()));
-            List<IgniteCacheTable> cachesUsed = f.cachesUsed();
-            fragmentCaches.put(f.fragmentId(), cachesUsed);
-            cachesUsed.forEach(cache -> {
-                String cacheName = cache.descriptor().cacheInfo().name();
-                if (!cacheMetrics.containsKey(cacheName)) cacheMetrics.put(cacheName, gcp.cache(cacheName).clusterMetrics());
-            });
+//            List<IgniteCacheTable> cachesUsed = f.cachesUsed();
+//            fragmentCaches.put(f.fragmentId(), cachesUsed);
+//            cachesUsed.forEach(cache -> {
+//                String cacheName = cache.descriptor().cacheInfo().name();
+//                if (!cacheMetrics.containsKey(cacheName)) cacheMetrics.put(cacheName, gcp.cache(cacheName).clusterMetrics());
+//            });
         });
 
         // Single is false so we get all nodes, otherwise it will return a single random node.
@@ -221,6 +221,7 @@ class ExecutionPlan {
         }
 
         return new ExecutionPlan(ver, newFragments);
+//        return this;
     }
 
 }
