@@ -106,39 +106,42 @@ public class QueryTemplate {
         return replace(fragments, fragment, replacement, false);
     }
 
-    protected static List<Fragment> replace(List<Fragment> fragments, Fragment fragment, List<Fragment> replacement, boolean preserveMapping) {
-        assert !F.isEmpty(replacement);
+    protected static List<Fragment> replace(List<Fragment> fragments, Fragment fragmentToReplace, List<Fragment> replacements, boolean preserveMapping) {
+        assert !F.isEmpty(replacements);
 
         Map<Long, Long> newTargets = new HashMap<>();
 
-        for (Fragment fragment0 : replacement) {
+        for (Fragment fragment0 : replacements) {
             for (IgniteReceiver remote : fragment0.remotes())
                 newTargets.put(remote.exchangeId(), fragment0.fragmentId());
         }
 
-        List<Fragment> fragments0 = new ArrayList<>(fragments.size() + replacement.size() - 1);
+        List<Fragment> newFragments = new ArrayList<>(fragments.size() + replacements.size() - 1);
 
-        for (Fragment fragment0 : fragments) {
-            if (fragment0 == fragment)
-                fragment0 = F.first(replacement);
-            else if (!fragment0.rootFragment()) {
-                IgniteSender sender = (IgniteSender)fragment0.root();
+        for (Fragment frag : fragments) {
+            if (frag == fragmentToReplace) {
+//                frag = F.first(replacement);
+                newFragments.addAll(replacements);
+                continue;
+            }
+            else if (!frag.rootFragment()) {
+                IgniteSender sender = (IgniteSender)frag.root();
                 Long newTargetId = newTargets.get(sender.exchangeId());
 
                 if (newTargetId != null) {
                     sender = new IgniteSender(sender.getCluster(), sender.getTraitSet(),
                         sender.getInput(), sender.exchangeId(), newTargetId, sender.distribution());
 
-                    fragment0 = preserveMapping ? new Fragment(fragment0.fragmentId(), sender, fragment0.remotes(), null, fragment0.mapping())
-                        : new Fragment(fragment0.fragmentId(), sender, fragment0.remotes());
+                    frag = preserveMapping ? new Fragment(frag.fragmentId(), sender, frag.remotes(), null, frag.mapping())
+                        : new Fragment(frag.fragmentId(), sender, frag.remotes());
                 }
             }
 
-            fragments0.add(fragment0);
+            newFragments.add(frag);
         }
 
-        fragments0.addAll(replacement.subList(1, replacement.size()));
+//        newFragments.addAll(replacements.subList(1, replacements.size()));
 
-        return fragments0;
+        return newFragments;
     }
 }

@@ -6,6 +6,8 @@ import java.util.Map;
 
 public class InternalDebug {
 
+    public static Object saveAny;
+
     private static final Map<String, InternalDebug> map = new HashMap<>();
 
     public static InternalDebug get(String name) {
