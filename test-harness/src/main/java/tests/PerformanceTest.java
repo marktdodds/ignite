@@ -169,6 +169,11 @@ public interface PerformanceTest {
 
     void populate(Connection conn, List<String> args) throws SQLException;
 
+    default String getArgOrDefault(List<String> args, String finder, int offset, String def) {
+        int index = args.indexOf(finder);
+        if (index >= 0) return args.get(index + offset);
+        else return def;
+    }
     default void populateTable(int count, List<Bucket> buckets, PreparedStatement stmt, Consumer<PreparedStatement> setParams) throws SQLException {
         int id = 0;
         for (Bucket bucket : buckets) {

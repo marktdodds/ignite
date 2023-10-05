@@ -28,12 +28,11 @@ public class SalesmenPerformanceTest1 implements PerformanceTest {
     @Override
     public String getTestQuery(List<String> args) {
         StringBuilder ids = new StringBuilder();
-        if (args.contains("--randomIds"))
-            for (int i = 0; i < 5; i++) {
-                ids.append(Math.toIntExact((long) (Math.random() * 20))).append(",");
-            }
-        else
-            ids.append("1,2,3,4,5,");
+        int idCount = Integer.parseInt(getArgOrDefault(args, "--idCount", 1, "5"));
+        int idUpper = Integer.parseInt(getArgOrDefault(args, "--idMax", 1, "20"));
+        for (int i = 0; i < idCount; i++) {
+            ids.append(args.contains("--randomIds") ? Math.toIntExact((long) (Math.random() * idUpper)) : i).append(",");
+        }
         System.out.println("IDS: " + ids);
         return "SELECT * FROM table1 INNER JOIN table2 ON table1.id = table2.salesmenId " +
             "WHERE table2.salesmenId in (" + ids.substring(0, ids.length() - 1) + ")";
