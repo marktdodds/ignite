@@ -39,6 +39,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.tracker.MemoryTr
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.NoOpMemoryTracker;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.QueryMemoryTracker;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.util.InternalDebug;
 
 /** */
 public class Query<RowT> implements RunningQuery {
@@ -81,6 +82,8 @@ public class Query<RowT> implements RunningQuery {
     /** */
     private MemoryTracker memoryTracker;
 
+    private InternalDebug debug;
+
     /** */
     public Query(
         UUID id,
@@ -101,6 +104,8 @@ public class Query<RowT> implements RunningQuery {
 
         fragments = Collections.newSetFromMap(new ConcurrentHashMap<>());
         this.totalFragmentsCnt = totalFragmentsCnt;
+        debug = InternalDebug.once(id.toString());
+        debug.start();
     }
 
     /** {@inheritDoc} */
@@ -239,6 +244,8 @@ public class Query<RowT> implements RunningQuery {
 
             if (state0 == QueryState.EXECUTING)
                 tryClose();
+
+            debug.logTimer("Query Finished " + totalFragmentsCnt + " Fragments", System.out, true);
         }
     }
 

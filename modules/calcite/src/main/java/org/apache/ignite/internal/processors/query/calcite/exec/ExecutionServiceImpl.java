@@ -566,7 +566,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
         if (System.getenv("MD_USE_ENHANCEMENTS") != null && "true".equals(System.getenv("MD_USE_ENHANCEMENTS"))) {
             plan.optimize(mappingSvc, mapCtx, gridCacheProcessor, gridDiscoveryManager);
-            timer.log("Optimizaion Time", System.out);
+            timer.logTimer("Optimizaion Time", System.out);
         }
 
         List<Fragment> fragments = plan.fragments();
@@ -576,8 +576,6 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
                 System.out.printf("Node IDS: %s, Fragment Id: %s, fragment: %s\n\n", f.mapping().nodeIds(), f.fragmentId(), f.serialized());
             });
         }
-
-        System.out.println(fragments.size());
 
         // Local execution
         Fragment fragment = F.first(fragments);
@@ -733,6 +731,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             );
 
             final BaseQueryContext qctx = createQueryContext(Contexts.empty(), msg.schema());
+
 
             QueryPlan qryPlan = queryPlanCache().queryPlan(
                 new CacheKey(msg.schema(), msg.root()),

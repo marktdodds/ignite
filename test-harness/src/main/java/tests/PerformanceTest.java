@@ -118,7 +118,7 @@ public interface PerformanceTest {
 
             try {
                 for (int i = 0; i < threads; i++) {
-                    Execution e = new Execution(getTestQuery(), "jdbc:ignite:thin://" + args.get(0), fetchSize, countResult, testIterations);
+                    Execution e = new Execution(getTestQuery(args), "jdbc:ignite:thin://" + args.get(0), fetchSize, countResult, testIterations);
                     Thread t = new Thread(e);
                     t.start();
                     executions.add(new Pair<>(t, e));
@@ -184,7 +184,7 @@ public interface PerformanceTest {
         }
     }
 
-    String getTestQuery();
+    String getTestQuery(List<String> args);
 
     class Execution implements Runnable {
 

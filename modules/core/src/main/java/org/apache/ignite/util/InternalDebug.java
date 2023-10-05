@@ -34,8 +34,11 @@ public class InternalDebug {
         if (startTime == 0L) start();
     }
 
-    public void log(String msg, PrintStream str) {
-        if (!"true".equalsIgnoreCase(System.getenv("MD_QUERY_LOGGING"))) return;
+    public void logTimer(String msg, PrintStream str) {
+        this.logTimer(msg, str, false);
+    }
+    public void logTimer(String msg, PrintStream str, boolean force) {
+        if (!"true".equalsIgnoreCase(System.getenv("MD_QUERY_LOGGING")) && !force) return;
         if (startTime == 0L) return;
         long time = System.currentTimeMillis();
         str.printf("[TIMER LOG || %s] %s: %sms\n", name, msg, time - startTime);

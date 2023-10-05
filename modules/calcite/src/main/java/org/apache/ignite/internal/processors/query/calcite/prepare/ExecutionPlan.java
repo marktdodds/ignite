@@ -51,7 +51,7 @@ class ExecutionPlan {
     private final AffinityTopologyVersion ver;
 
     /**  */
-    private final ImmutableList<Fragment> fragments;
+    private ImmutableList<Fragment> fragments;
 
     /**  */
     ExecutionPlan(AffinityTopologyVersion ver, List<Fragment> fragments) {

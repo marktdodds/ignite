@@ -77,7 +77,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     @Override public QueryPlan queryPlan(CacheKey key, Supplier<QueryPlan> planSupplier) {
         Map<CacheKey, QueryPlan> cache = this.cache;
 
-        if (System.getenv("MD_DISABLE_QUERY_CACHE") != null) {
+        if ("true".equalsIgnoreCase(System.getenv("MD_DISABLE_QUERY_CACHE"))) {
             InternalDebug.log(">>> Cache Disabled");
             cache.remove(key);
         }
@@ -90,7 +90,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     @Override public QueryPlan queryPlan(CacheKey key) {
         Map<CacheKey, QueryPlan> cache = this.cache;
         QueryPlan plan = cache.get(key);
-        if (System.getenv("MD_DISABLE_QUERY_CACHE") != null) {
+        if ("true".equalsIgnoreCase(System.getenv("MD_DISABLE_QUERY_CACHE"))) {
             InternalDebug.log(">>> Cache Disabled");
             return null;
         }

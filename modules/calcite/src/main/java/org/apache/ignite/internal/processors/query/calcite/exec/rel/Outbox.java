@@ -69,7 +69,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     private boolean exchangeFinished;
 
     /** */
-    private final InternalDebug messageCounter;
+    private final InternalDebug debug;
 
     /**
      * @param ctx Execution context.
@@ -95,8 +95,8 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
         this.exchangeId = exchangeId;
         this.dest = dest;
 
-        messageCounter = InternalDebug.once("OutboxMessageCounter_" + queryId() + "_" + ctx.fragmentId() + "->" + targetFragmentId);
-        messageCounter.start();
+        debug = InternalDebug.once("OutboxMessageCounter_" + queryId() + "_" + ctx.fragmentId() + "->" + targetFragmentId);
+        debug.start();
     }
 
     /** {@inheritDoc} */
@@ -210,7 +210,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     /** */
     private void sendBatch(UUID nodeId, int batchId, boolean last, List<Row> rows) throws IgniteCheckedException {
         exchange.sendBatch(nodeId, queryId(), targetFragmentId, exchangeId, batchId, last, rows);
-        messageCounter.counterAdd(rows.size());
+        debug.counterAdd(rows.size());
     }
 
     /** */
@@ -272,8 +272,8 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
                 exchangeFinished = true;
             }
 
-            messageCounter.logCounter("Total Iterations", System.out);
-            messageCounter.log("Outbox Completeled", System.out);
+            debug.logCounter("Total Iterations", System.out);
+            debug.logTimer("Completeled", System.out);
         }
     }
 
