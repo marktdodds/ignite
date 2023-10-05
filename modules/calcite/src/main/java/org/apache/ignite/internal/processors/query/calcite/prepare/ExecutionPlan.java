@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
-import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
@@ -39,7 +38,6 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapp
 import org.apache.ignite.internal.processors.query.calcite.metadata.IgniteMdFragmentMapping;
 import org.apache.ignite.internal.processors.query.calcite.metadata.MappingService;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
-import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
 
@@ -136,7 +134,7 @@ class ExecutionPlan {
 //            System.out.printf("[Fragment %s] Est. Res Set: %s\n", f.fragmentId(), mq.getRowCount(f.root()));
             Map<UUID, SiteOption> siteOptions = new HashMap<>();
             UUID currentSite = f.mapping().nodeIds().get(0);
-            siteOptions.put(currentSite, new SiteOption(currentSite, 0, gdm.node(currentSite).metrics().getCurrentCpuLoad()));
+            siteOptions.put(currentSite, new SiteOption(currentSite, 2, gdm.node(currentSite).metrics().getCurrentCpuLoad()));
 
             try {
                 for (IgniteReceiver receiver : f.remotes()) {
@@ -207,7 +205,7 @@ class ExecutionPlan {
         try {
             FragmentMapping.create(ctx.localNodeId()).colocate(newFragments.get(0).mapping());
         } catch (ColocationMappingException e) {
-            List<Fragment> frags = new FragmentSplitter(newFragments.get(0).root()).go(newFragments.get(0));
+            List<Fragment> frags = new FragmentSplitter(newFragments.get(0).root()).go(newFragments.get(0), true);
             newFragments = QueryTemplate.replace(newFragments, newFragments.get(0), Arrays.asList(frags.get(0), frags.get(1).remap(newFragments.get(0).mapping())), true);
         }
 

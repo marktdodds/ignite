@@ -46,15 +46,22 @@ public class FragmentSplitter extends IgniteRelShuttle {
     /** */
     private FragmentProto curr;
 
+    private long cutPointFragmentId = IdGenerator.nextId();
+
     /** */
     public FragmentSplitter(RelNode cutPoint) {
         this.cutPoint = cutPoint;
     }
 
+    public List<Fragment> go(Fragment f) {
+        return go(f, false);
+    }
+
     /** */
-    public List<Fragment> go(Fragment fragment) {
+    public List<Fragment> go(Fragment fragment, boolean preserveOriginalID) {
         ArrayList<Fragment> res = new ArrayList<>();
 
+        if (preserveOriginalID) cutPointFragmentId = fragment.fragmentId();
         stack.push(new FragmentProto(IdGenerator.nextId(), fragment.root()));
 
         while (!stack.isEmpty()) {
@@ -106,7 +113,7 @@ public class FragmentSplitter extends IgniteRelShuttle {
         RelNode input = rel instanceof IgniteTrimExchange ? rel.getInput(0) : rel;
 
         long targetFragmentId = curr.id;
-        long sourceFragmentId = IdGenerator.nextId();
+        long sourceFragmentId = cutPointFragmentId;//IdGenerator.nextId();
         long exchangeId = sourceFragmentId;
 
         IgniteSender sender = new IgniteSender(cluster, traits, input, exchangeId, targetFragmentId, rel.distribution());
