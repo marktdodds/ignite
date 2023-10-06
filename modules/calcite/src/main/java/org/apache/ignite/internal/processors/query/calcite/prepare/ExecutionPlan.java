@@ -218,9 +218,9 @@ class ExecutionPlan {
             throw new IgniteSQLException("Failed to optimize query.");
         }
 
-        fragments = ImmutableList.copyOf(newFragments);
-//        return new ExecutionPlan(ver, newFragments);
-        return this;
+//        fragments = ImmutableList.copyOf(newFragments);
+        return new ExecutionPlan(ver, fragments());
+//        return this;
     }
 
 }
