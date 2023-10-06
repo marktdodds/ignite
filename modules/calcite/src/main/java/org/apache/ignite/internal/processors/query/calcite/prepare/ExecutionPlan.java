@@ -113,7 +113,7 @@ class ExecutionPlan {
 
         fragments().forEach(f -> {
             // This ensures we are dealing with fresh fragments and won't mess up any other cached values
-            fragmentMap.put(f.fragmentId(), f.remap(f.mapping()));
+            fragmentMap.put(f.fragmentId(), f);
 //            List<IgniteCacheTable> cachesUsed = f.cachesUsed();
 //            fragmentCaches.put(f.fragmentId(), cachesUsed);
 //            cachesUsed.forEach(cache -> {
