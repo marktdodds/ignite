@@ -564,7 +564,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         InternalDebug timer = InternalDebug.once("OptimizationTimer");
         timer.start();
 
-        if (System.getenv("MD_USE_ENHANCEMENTS") != null && "true".equals(System.getenv("MD_USE_ENHANCEMENTS"))) {
+        if ("true".equals(System.getenv("MD_USE_ENHANCEMENTS"))) {
             plan.optimize(mappingSvc, mapCtx, gridCacheProcessor, gridDiscoveryManager);
             timer.logTimer("Optimizaion Time", System.out);
         }
