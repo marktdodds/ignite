@@ -219,7 +219,7 @@ class ExecutionPlan {
         }
 
 //        fragments = ImmutableList.copyOf(newFragments);
-        return new ExecutionPlan(ver, fragments());
+        return new ExecutionPlan(ver, newFragments);
 //        return this;
     }
 

@@ -128,7 +128,7 @@ public class QueryTemplate {
                 IgniteSender sender = (IgniteSender)frag.root();
                 Long newTargetId = newTargets.get(sender.exchangeId());
 
-                if (newTargetId != null) {
+                if (newTargetId != null && newTargetId != sender.targetFragmentId()) {
                     sender = new IgniteSender(sender.getCluster(), sender.getTraitSet(),
                         sender.getInput(), sender.exchangeId(), newTargetId, sender.distribution());
 
