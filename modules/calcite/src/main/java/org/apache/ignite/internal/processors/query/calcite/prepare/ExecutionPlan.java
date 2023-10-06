@@ -219,7 +219,7 @@ class ExecutionPlan {
         }
 
 //        fragments = ImmutableList.copyOf(newFragments);
-        return new ExecutionPlan(ver, fragments().stream().map(f -> f.remap(f.mapping())).collect(Collectors.toList()));
+        return new ExecutionPlan(ver, newFragments);
 //        return this;
     }
 
