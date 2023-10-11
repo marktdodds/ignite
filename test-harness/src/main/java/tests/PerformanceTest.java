@@ -206,7 +206,7 @@ public interface PerformanceTest {
             this.fetchSize = fetchSize;
             this.countResult = countResult;
             this.iterations = iterations;
-            this.conn = DriverManager.getConnection(connUrl);
+            conn = DriverManager.getConnection(connUrl);
         }
 
         public void complete() throws SQLException {

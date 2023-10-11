@@ -28,6 +28,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
 
 /** */
@@ -58,6 +59,9 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
 
     /** */
     protected boolean inLoop;
+
+    protected InternalDebug debugTimer = InternalDebug.once("MergeJoinTimer");
+    protected InternalDebug debugCounter = InternalDebug.once("MergeJoinCounter");
 
     /**
      * @param ctx Execution context.
@@ -282,6 +286,7 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
         /** {@inheritDoc} */
         @Override protected void join() throws Exception {
             inLoop = true;
+            debugTimer.counterSub(System.currentTimeMillis());
             try {
                 while (requested > 0 && (left != null || !leftInBuf.isEmpty()) && (right != null || !rightInBuf.isEmpty()
                     || rightMaterialization != null)) {
@@ -369,10 +374,13 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
 
                     requested--;
                     downstream().push(row);
+                    debugCounter.counterInc();
+
                 }
             }
             finally {
                 inLoop = false;
+                debugTimer.counterAdd(System.currentTimeMillis());
             }
 
             if (waitingRight == 0)
@@ -386,6 +394,8 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
             ) {
                 requested = 0;
                 downstream().end();
+                debugTimer.logCounter("Merge Execution Time", System.out);
+                debugCounter.logCounter("Total Row Count", System.out);
             }
         }
     }
@@ -553,6 +563,7 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
             }
             finally {
                 inLoop = false;
+
             }
 
             if (waitingRight == 0)
