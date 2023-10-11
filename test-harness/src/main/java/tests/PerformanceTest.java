@@ -108,7 +108,7 @@ public interface PerformanceTest {
             System.out.println("Starting tests...");
             int testIterations = Integer.parseInt(args.get(index + 1));
             int fetchSize = Integer.parseInt(args.get(index + 2));
-            boolean countResult = args.contains("--countResult");
+            boolean countResult = !args.contains("--noCountResults");
             int threads = args.contains("-t") ? Integer.parseInt(args.get(args.indexOf("-t") + 1)) : 1;
 
 

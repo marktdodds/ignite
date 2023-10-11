@@ -824,6 +824,7 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
         /** {@inheritDoc} */
         @Override protected void join() throws Exception {
             inLoop = true;
+            debugTimer.counterSub(System.currentTimeMillis());
             try {
                 while (requested > 0 && !(left == null && leftInBuf.isEmpty() && waitingLeft != NOT_WAITING)
                     && !(right == null && rightInBuf.isEmpty() && rightMaterialization == null && waitingRight != NOT_WAITING)) {
@@ -973,10 +974,12 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
 
                     requested--;
                     downstream().push(row);
+                    debugCounter.counterInc();
                 }
             }
             finally {
                 inLoop = false;
+                debugTimer.counterAdd(System.currentTimeMillis());
             }
 
             if (waitingRight == 0)
@@ -990,6 +993,8 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
             ) {
                 requested = 0;
                 downstream().end();
+                debugTimer.logCounter("Merge Execution Time", System.out);
+                debugCounter.logCounter("Total Row Count", System.out);
             }
         }
     }
