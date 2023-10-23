@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheExistsException;
 import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.cluster.ClusterNode;
@@ -65,11 +66,13 @@ import org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSn
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateFinishMessage;
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateMessage;
 import org.apache.ignite.internal.processors.cluster.DiscoveryDataClusterState;
+import org.apache.ignite.internal.processors.datastructures.DataStructuresProcessor;
 import org.apache.ignite.internal.processors.query.QuerySchema;
 import org.apache.ignite.internal.processors.query.QuerySchemaPatch;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.util.lang.GridFunc;
 import org.apache.ignite.internal.util.lang.GridPlainCallable;
+import org.apache.ignite.internal.util.typedef.C1;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -85,11 +88,13 @@ import org.apache.ignite.spi.discovery.DiscoveryDataBag;
 import org.apache.ignite.spi.systemview.view.CacheGroupView;
 import org.apache.ignite.spi.systemview.view.CacheView;
 import org.jetbrains.annotations.Nullable;
-import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL_SNAPSHOT;
+
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_ALLOW_MIXED_CACHE_GROUPS;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.internal.GridComponent.DiscoveryDataExchangeType.CACHE_PROC;
 import static org.apache.ignite.internal.processors.cache.GridCacheProcessor.CLUSTER_READ_ONLY_MODE_ERROR_MSG_FORMAT;
+import static org.apache.ignite.internal.processors.cache.GridLocalConfigManager.validateIncomingConfiguration;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.SNP_IN_PROGRESS_ERR_MSG;
 
 /**
@@ -1086,8 +1091,11 @@ public class ClusterCachesInfo {
             );
         }
 
+        if (err == null)
+            err = QueryUtils.checkQueryEntityConflicts(req.startCacheConfiguration(), registeredCaches.values());
+
         if (err == null) {
-            String conflictErr = checkCacheConflict(req.startCacheConfiguration());
+            String conflictErr = checkCacheConflict(req.startCacheConfiguration(), false);
 
             if (conflictErr != null) {
                 U.warn(log, "Ignore cache start request. " + conflictErr);
@@ -1095,9 +1103,6 @@ public class ClusterCachesInfo {
                 err = new IgniteCheckedException("Failed to start cache. " + conflictErr);
             }
         }
-
-        if (err == null)
-            err = QueryUtils.checkQueryEntityConflicts(req.startCacheConfiguration(), registeredCaches.values());
 
         if (err == null) {
             GridEncryptionManager encMgr = ctx.encryption();
@@ -1187,6 +1192,34 @@ public class ClusterCachesInfo {
         res.addedDescs.add(startDesc);
 
         exchangeActions.addCacheToStart(req, startDesc);
+
+        return true;
+    }
+
+    /**
+     * Validate correcteness of new cache start request.
+     *
+     * @param err Current error.
+     * @param persistedCfgs {@code True} if process start of persisted caches during cluster activation.
+     * @param res Accumulator for cache change process results.
+     * @param req Cache change request.
+     *
+     * @return {@code True} if there is no errors due initialization.
+     */
+    private boolean validateStartNewCache(
+        @Nullable IgniteCheckedException err,
+        boolean persistedCfgs,
+        CacheChangeProcessResult res,
+        DynamicCacheChangeRequest req
+    ) {
+        if (err != null) {
+            if (persistedCfgs)
+                res.errs.add(err);
+            else
+                ctx.cache().completeCacheStartFuture(req, false, err);
+
+            return false;
+        }
 
         return true;
     }
@@ -1514,7 +1547,7 @@ public class ClusterCachesInfo {
         if (joinDiscoData != null) {
             for (Map.Entry<String, CacheJoinNodeDiscoveryData.CacheInfo> e : joinDiscoData.caches().entrySet()) {
                 if (!registeredCaches.containsKey(e.getKey())) {
-                    conflictErr = checkCacheConflict(e.getValue().cacheData().config());
+                    conflictErr = checkCacheConflict(e.getValue().cacheData().config(), true);
 
                     if (conflictErr != null) {
                         conflictErr = "Failed to start configured cache due to conflict with started caches. " +
@@ -1735,6 +1768,21 @@ public class ClusterCachesInfo {
         // Find the "earliest" available descriptor.
         for (Map<Integer, CacheGroupDescriptor> descriptors : markedForDeletionCacheGrps.values()) {
             CacheGroupDescriptor desc = descriptors.get(grpId);
+
+            if (desc != null)
+                return desc;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param cacheName Cache name.
+     */
+    public @Nullable DynamicCacheDescriptor markedForDeletionCache(String cacheName) {
+        // Find the "earliest" available descriptor.
+        for (Map<String, DynamicCacheDescriptor> descriptors : markedForDeletionCaches.values()) {
+            DynamicCacheDescriptor desc = descriptors.get(cacheName);
 
             if (desc != null)
                 return desc;
@@ -2007,7 +2055,7 @@ public class ClusterCachesInfo {
                     CacheConfiguration<?, ?> cfg = cacheInfo.cacheData().config();
 
                     if (!registeredCaches.containsKey(cfg.getName())) {
-                        String conflictErr = checkCacheConflict(cfg);
+                        String conflictErr = checkCacheConflict(cfg, true);
 
                         if (conflictErr != null) {
                             U.warn(log, "Ignore cache received from joining node. " + conflictErr);
@@ -2078,9 +2126,20 @@ public class ClusterCachesInfo {
      * Checks cache configuration on conflict with already registered caches and cache groups.
      *
      * @param cfg Cache configuration.
+     * @param checkIndexes If {@code true} check indexes conflicts.
      * @return {@code null} if validation passed, error message in other case.
      */
-    private String checkCacheConflict(CacheConfiguration<?, ?> cfg) {
+    private String checkCacheConflict(CacheConfiguration<?, ?> cfg, boolean checkIndexes) {
+        if (checkIndexes) {
+            Collection<CacheConfiguration<?, ?>> processedCfgs = F.viewReadOnly(registeredCaches.values(),
+                (C1<DynamicCacheDescriptor, CacheConfiguration<?, ?>>)DynamicCacheDescriptor::cacheConfiguration);
+
+            String err = validateIncomingConfiguration(processedCfgs, cfg);
+
+            if (err != null)
+                return err;
+        }
+
         int cacheId = CU.cacheId(cfg.getName());
 
         if (cacheGroupByName(cfg.getName()) != null)
@@ -2143,7 +2202,7 @@ public class ClusterCachesInfo {
             CacheConfiguration<?, ?> cfg = cacheInfo.cacheData().config();
 
             if (!registeredCaches.containsKey(cfg.getName())) {
-                String conflictErr = checkCacheConflict(cfg);
+                String conflictErr = checkCacheConflict(cfg, true);
 
                 if (conflictErr != null) {
                     if (locJoin)
@@ -2510,7 +2569,8 @@ public class ClusterCachesInfo {
         CU.validateCacheGroupsAttributesMismatch(log, cfg, startCfg, "cacheMode", "Cache mode",
             cfg.getCacheMode(), startCfg.getCacheMode(), true);
 
-        if (cfg.getAtomicityMode() == TRANSACTIONAL_SNAPSHOT || startCfg.getAtomicityMode() == TRANSACTIONAL_SNAPSHOT)
+        if (!IgniteSystemProperties.getBoolean(IGNITE_ALLOW_MIXED_CACHE_GROUPS) // TODO https://issues.apache.org/jira/browse/IGNITE-12622
+            && !DataStructuresProcessor.isDataStructureCache(cfg.getName())) // TODO https://issues.apache.org/jira/browse/IGNITE-20623
             CU.validateCacheGroupsAttributesMismatch(log, cfg, startCfg, "atomicityMode", "Atomicity mode",
                 attr1.atomicityMode(), attr2.atomicityMode(), true);
 

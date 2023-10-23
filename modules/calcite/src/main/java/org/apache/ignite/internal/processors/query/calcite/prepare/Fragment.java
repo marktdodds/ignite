@@ -131,6 +131,11 @@ public class Fragment {
         return root.getCluster() == cluster ? this : new Cloner(cluster).go(this);
     }
 
+    /** */
+    public Fragment filterByPartitions(int[] parts) throws ColocationMappingException {
+        return new Fragment(id, root, remotes, rootSer, mapping.filterByPartitions(parts));
+    }
+
     /**
      * Mapps the fragment to its data location.
      * @param ctx Planner context.
@@ -156,8 +161,12 @@ public class Fragment {
         try {
             FragmentMapping mapping = IgniteMdFragmentMapping._fragmentMapping(root, mq, ctx);
 
-            if (rootFragment())
-                mapping = FragmentMapping.create(ctx.localNodeId()).colocate(mapping);
+            if (rootFragment()) {
+                if (ctx.isLocal())
+                    mapping = mapping.local(ctx.localNodeId());
+                else
+                    mapping = FragmentMapping.create(ctx.localNodeId()).colocate(mapping);
+            }
 
             if (single() && mapping.nodeIds().size() > 1) {
                 // this is possible when the fragment contains scan of a replicated cache, which brings
@@ -167,7 +176,7 @@ public class Fragment {
                     .get(ThreadLocalRandom.current().nextInt(mapping.nodeIds().size()))).colocate(mapping);
             }
 
-            return mapping.finalize(nodesSource);
+            return mapping.finalizeMapping(nodesSource);
         }
         catch (NodeMappingException e) {
             throw new FragmentMappingException("Failed to calculate physical distribution", this, e.node(), e);

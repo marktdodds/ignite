@@ -94,6 +94,7 @@ import org.apache.ignite.internal.cache.query.index.IndexProcessor;
 import org.apache.ignite.internal.cluster.ClusterGroupAdapter;
 import org.apache.ignite.internal.cluster.IgniteClusterEx;
 import org.apache.ignite.internal.maintenance.MaintenanceProcessor;
+import org.apache.ignite.internal.management.IgniteCommandRegistry;
 import org.apache.ignite.internal.managers.GridManager;
 import org.apache.ignite.internal.managers.IgniteMBeansManager;
 import org.apache.ignite.internal.managers.checkpoint.GridCheckpointManager;
@@ -263,7 +264,7 @@ import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_RESTART_ENABL
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_REST_PORT_RANGE;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SHUTDOWN_POLICY;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SPI_CLASS;
-import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_TX_CONFIG;
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_TX_SERIALIZABLE_ENABLED;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_USER_NAME;
 import static org.apache.ignite.internal.IgniteVersionUtils.BUILD_TSTAMP_STR;
 import static org.apache.ignite.internal.IgniteVersionUtils.COPYRIGHT;
@@ -397,6 +398,10 @@ public class IgniteKernal implements IgniteEx, Externalizable {
     /** Helper which registers and unregisters MBeans. */
     @GridToStringExclude
     private IgniteMBeansManager mBeansMgr;
+
+    /** Registry with all management commands known by node. */
+    @GridToStringExclude
+    private final IgniteCommandRegistry cmdReg = new IgniteCommandRegistry();
 
     /** Ignite configuration instance. */
     private IgniteConfiguration cfg;
@@ -1690,7 +1695,7 @@ public class IgniteKernal implements IgniteEx, Externalizable {
         addDataStorageConfigurationAttributes();
 
         // Save transactions configuration.
-        add(ATTR_TX_CONFIG, cfg.getTransactionConfiguration());
+        add(ATTR_TX_SERIALIZABLE_ENABLED, cfg.getTransactionConfiguration().isTxSerializableEnabled());
 
         // Supported features.
         add(ATTR_IGNITE_FEATURES, IgniteFeatures.allFeatures());
@@ -3091,6 +3096,11 @@ public class IgniteKernal implements IgniteEx, Externalizable {
         finally {
             unguard();
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteCommandRegistry commandsRegistry() {
+        return cmdReg;
     }
 
     /**

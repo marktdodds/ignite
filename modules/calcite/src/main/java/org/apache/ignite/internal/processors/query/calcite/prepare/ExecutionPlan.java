@@ -17,11 +17,14 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -31,6 +34,13 @@ import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.query.calcite.exec.partition.PartitionNode;
+import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
+import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapping;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
+import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationMappingException;
@@ -44,7 +54,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  *
  */
-class ExecutionPlan {
+public class ExecutionPlan {
     /**  */
     private final AffinityTopologyVersion ver;
 
@@ -52,9 +62,13 @@ class ExecutionPlan {
     private ImmutableList<Fragment> fragments;
 
     /**  */
-    ExecutionPlan(AffinityTopologyVersion ver, List<Fragment> fragments) {
+    private final ImmutableList<PartitionNode> partNodes;
+
+    /** */
+    ExecutionPlan(AffinityTopologyVersion ver, List<Fragment> fragments, List<PartitionNode> partNodes) {
         this.ver = ver;
         this.fragments = ImmutableList.copyOf(fragments);
+        this.partNodes = ImmutableList.copyOf(partNodes);
     }
 
     /**  */
@@ -67,160 +81,46 @@ class ExecutionPlan {
         return fragments;
     }
 
-    private static class SiteOption implements Comparable<SiteOption> {
-
-        private final UUID nodeId;
-        private final int priority;
-
-        // CPU load as % of total capacity
-        private final double cpuLoad;
-
-        private SiteOption(UUID nodeId, int priority, double cpuLoad) {
-            this.nodeId = nodeId;
-            this.priority = priority;
-            this.cpuLoad = cpuLoad;
-        }
-
-        @Override
-        public int compareTo(@NotNull ExecutionPlan.SiteOption o) {
-            // within a 5% buffer we take the priority into account
-            if (priority < o.priority) {
-                return Double.compare(cpuLoad * 1.1 - 0.2, o.cpuLoad);
-            } else if (priority > o.priority) {
-                return Double.compare(cpuLoad, o.cpuLoad * 1.1 - 0.2);
-            }
-            return Double.compare(cpuLoad, o.cpuLoad);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return o instanceof SiteOption && compareTo((SiteOption) o) == 0;
-        }
-
-        @Override
-        public String toString() {
-            return "{id: " + nodeId + ", cpuLoad: " + cpuLoad + ", priority: " + priority + "}";
-        }
+    /** */
+    public List<PartitionNode> partitionNodes() {
+        return partNodes;
     }
 
-    public ExecutionPlan optimize(MappingService mappingService, MappingQueryContext ctx, GridCacheProcessor gcp, GridDiscoveryManager gdm) {
-        RelMetadataQuery mq = ctx.cluster().getMetadataQuery();
-
-        // LinkedHashMap maintained order so we can recreate the Fragments list later
-        LinkedHashMap<Long, Fragment> fragmentMap = new LinkedHashMap<>();
-//        Map<Long, List<IgniteCacheTable>> fragmentCaches = new HashMap<>();
-//        Map<String, CacheMetrics> cacheMetrics = new HashMap<>();
-
-        fragments().forEach(f -> {
-            // This ensures we are dealing with fresh fragments and won't mess up any other cached values
-            fragmentMap.put(f.fragmentId(), f);
-//            List<IgniteCacheTable> cachesUsed = f.cachesUsed();
-//            fragmentCaches.put(f.fragmentId(), cachesUsed);
-//            cachesUsed.forEach(cache -> {
-//                String cacheName = cache.descriptor().cacheInfo().name();
-//                if (!cacheMetrics.containsKey(cacheName)) cacheMetrics.put(cacheName, gcp.cache(cacheName).clusterMetrics());
-//            });
-        });
-
-        // Single is false so we get all nodes, otherwise it will return a single random node.
-        Supplier<List<UUID>> executionNodes = () -> mappingService.executionNodes(ctx.topologyVersion(), false, null);
-
-        for (Fragment f : fragmentMap.values()) {
-            if (f.root() instanceof IgniteReceiver || !f.single()) continue;
-            assert f.mapping().nodeIds().size() == 1;
-
-            FragmentMapping rootMapping = IgniteMdFragmentMapping._fragmentMapping(f.root(), mq, ctx);
-
-//            System.out.printf("[Fragment %s] Est. Res Set: %s\n", f.fragmentId(), mq.getRowCount(f.root()));
-            Map<UUID, SiteOption> siteOptions = new HashMap<>();
-            UUID currentSite = f.mapping().nodeIds().get(0);
-            siteOptions.put(currentSite, new SiteOption(currentSite, 2, gdm.node(currentSite).metrics().getCurrentCpuLoad()));
-
-            try {
-                for (IgniteReceiver receiver : f.remotes()) {
-                    Fragment input = fragmentMap.get(receiver.sourceFragmentId());
-                    FragmentMapping mapping = rootMapping.colocate(input.mapping()).finalize(executionNodes);
-
-//                    UUID bestSite = null;
-//                    double highestTransfer = 0;
-
-                    for (UUID site : mapping.nodeIds()) {
-                        siteOptions.putIfAbsent(site, new SiteOption(site, 1, gdm.node(site).metrics().getCurrentCpuLoad()));
-                    }
-
-//                    for (UUID site : mapping.nodeIds()) {
-//                        double totalRows = 0;
-//                        for (IgniteCacheTable t : fragmentCaches.get(input.fragmentId())) {
-//                            long size = cacheMetrics.get(t.descriptor().cacheInfo().name()).getCacheSize(site);
-//                            totalRows += size;
-//                            System.out.printf("[Site %s | %s] %s rows, ", site, t.descriptor().cacheInfo().name(), size);
-//                        }
-//
-//                        if (totalRows > highestTransfer) {
-//                            bestSite = site;
-//                            highestTransfer = totalRows;
-//                        }
-//                    }
-
-                    // No valid remotes
-//                    if (bestSite == null) continue;
-
-                    // Record the site with the higest transfer cost for this remote
-//                    if (remoteSiteSizes.getOrDefault(bestSite, 0D) < highestTransfer) {
-//                        remoteSiteSizes.put(bestSite, highestTransfer);
-//                        }
-                }
-
-                List<SiteOption> sorted = siteOptions
-                    .values()
-                    .stream()
-                    .sorted()
-                    .collect(Collectors.toList());
-
-                InternalDebug.log(sorted.toString());
-                UUID bestSite = sorted.get(0).nodeId;
-
-//                double highestRowTransfer = mq.getRowCount(f.root());
-//
-//                for (UUID site : siteOptions) {
-//                    System.out.printf("[TS %s] %s rows\n", e.getKey(), e.getValue());
-//                    // TODO make this smarter with load based selection if theres multiple options
-//                    if (e.getValue() > highestRowTransfer) {
-//                        bestSite = e.getKey();
-//                        highestRowTransfer = e.getValue();
-//                    }
-//                }
-
-                if (bestSite.compareTo(currentSite) != 0) {
-                    InternalDebug.log(String.format(">> [REMAPPED] fragment: %s, before: %s, best site: %s\n\n", f.fragmentId(), f.mapping().nodeIds(), bestSite));
-                    fragmentMap.put(f.fragmentId(), f.remap(FragmentMapping.create(bestSite).colocate(rootMapping).finalize(executionNodes)));
-                }
-
-            } catch (ColocationMappingException ignored) {
-                // There is no overlap between the input mapping and root mapping so we ignore this input
-            }
-        }
-
-        List<Fragment> newFragments = new ArrayList<>(fragmentMap.values());
-        try {
-            FragmentMapping.create(ctx.localNodeId()).colocate(newFragments.get(0).mapping());
-        } catch (ColocationMappingException e) {
-            List<Fragment> frags = new FragmentSplitter(newFragments.get(0).root()).go(newFragments.get(0), true);
-            newFragments = QueryTemplate.replace(newFragments, newFragments.get(0), Arrays.asList(frags.get(0), frags.get(1).remap(newFragments.get(0).mapping())), true);
-        }
-
-        try {
-            Fragment root = newFragments.remove(0);
-            FragmentMapping mapping = IgniteMdFragmentMapping._fragmentMapping(root.root(), mq, ctx);
-            newFragments.add(0, root.remap(FragmentMapping.create(ctx.localNodeId()).colocate(mapping).finalize(executionNodes)));
-        } catch (ColocationMappingException e) {
-            // Realistically should never happen...
-            throw new IgniteSQLException("Failed to optimize query.");
-        }
-
-//        fragments = ImmutableList.copyOf(newFragments);
-        return new ExecutionPlan(ver, newFragments);
-//        return this;
+    /** */
+    public FragmentMapping mapping(Fragment fragment) {
+        return fragment.mapping();
     }
 
+    /** */
+    public ColocationGroup target(Fragment fragment) {
+        if (fragment.rootFragment())
+            return null;
+
+        IgniteSender sender = (IgniteSender)fragment.root();
+        return mapping(sender.targetFragmentId()).findGroup(sender.exchangeId());
+    }
+
+    /** */
+    public Map<Long, List<UUID>> remotes(Fragment fragment) {
+        List<IgniteReceiver> remotes = fragment.remotes();
+
+        if (F.isEmpty(remotes))
+            return null;
+
+        HashMap<Long, List<UUID>> res = U.newHashMap(remotes.size());
+
+        for (IgniteReceiver remote : remotes)
+            res.put(remote.exchangeId(), mapping(remote.sourceFragmentId()).nodeIds());
+
+        return res;
+    }
+
+    /** */
+    private FragmentMapping mapping(long fragmentId) {
+        return fragments().stream()
+            .filter(f -> f.fragmentId() == fragmentId)
+            .findAny().orElseThrow(() -> new IllegalStateException("Cannot find fragment with given ID. [" +
+                "fragmentId=" + fragmentId + ", " + "fragments=" + fragments() + "]"))
+            .mapping();
+    }
 }

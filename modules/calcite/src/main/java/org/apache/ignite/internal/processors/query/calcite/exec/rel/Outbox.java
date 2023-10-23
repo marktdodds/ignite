@@ -160,11 +160,6 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     }
 
     /** {@inheritDoc} */
-    @Override public void onError(Throwable e) {
-        onErrorInternal(e);
-    }
-
-    /** {@inheritDoc} */
     @Override protected void onErrorInternal(Throwable e) {
         try {
             sendError(e);

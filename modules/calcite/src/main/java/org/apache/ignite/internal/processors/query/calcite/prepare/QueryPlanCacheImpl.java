@@ -39,7 +39,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     private static final int CACHE_SIZE = 1024;
 
     /** */
-    private GridInternalSubscriptionProcessor subscriptionProcessor;
+    private final GridInternalSubscriptionProcessor subscriptionProc;
 
     /** */
     private volatile Map<CacheKey, QueryPlan> cache;
@@ -51,21 +51,14 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
         super(ctx);
 
         cache = new GridBoundedConcurrentLinkedHashMap<>(CACHE_SIZE);
-        subscriptionProcessor(ctx.internalSubscriptionProcessor());
+        subscriptionProc = ctx.internalSubscriptionProcessor();
 
         init();
     }
 
-    /**
-     * @param subscriptionProcessor Subscription processor.
-     */
-    public void subscriptionProcessor(GridInternalSubscriptionProcessor subscriptionProcessor) {
-        this.subscriptionProcessor = subscriptionProcessor;
-    }
-
     /** {@inheritDoc} */
     @Override public void init() {
-        subscriptionProcessor.registerSchemaChangeListener(new SchemaListener());
+        subscriptionProc.registerSchemaChangeListener(new SchemaListener());
     }
 
     /** {@inheritDoc} */
@@ -75,8 +68,6 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
 
     /** {@inheritDoc} */
     @Override public QueryPlan queryPlan(CacheKey key, Supplier<QueryPlan> planSupplier) {
-        Map<CacheKey, QueryPlan> cache = this.cache;
-
         if ("true".equalsIgnoreCase(System.getenv("MD_DISABLE_QUERY_CACHE"))) {
             InternalDebug.log(">>> Cache Disabled");
             cache.remove(key);
@@ -88,7 +79,6 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
 
     /** {@inheritDoc} */
     @Override public QueryPlan queryPlan(CacheKey key) {
-        Map<CacheKey, QueryPlan> cache = this.cache;
         QueryPlan plan = cache.get(key);
         if ("true".equalsIgnoreCase(System.getenv("MD_DISABLE_QUERY_CACHE"))) {
             InternalDebug.log(">>> Cache Disabled");

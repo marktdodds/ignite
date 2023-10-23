@@ -25,24 +25,23 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
-import org.apache.ignite.internal.processors.query.QueryState;
-import org.apache.ignite.internal.processors.query.RunningQuery;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExchangeService;
-import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionCancelledException;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.MemoryTracker;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.NoOpMemoryTracker;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.QueryMemoryTracker;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.util.InternalDebug;
+import org.jetbrains.annotations.Nullable;
 
 /** */
-public class Query<RowT> implements RunningQuery {
+public class Query<RowT> {
     /** */
     private final UUID initNodeId;
 
@@ -59,7 +58,7 @@ public class Query<RowT> implements RunningQuery {
     protected final GridQueryCancel cancel;
 
     /** */
-    protected final Consumer<Query<RowT>> unregister;
+    protected final BiConsumer<Query<RowT>, Throwable> unregister;
 
     /** */
     protected volatile QueryState state = QueryState.INITED;
@@ -90,7 +89,7 @@ public class Query<RowT> implements RunningQuery {
         UUID initNodeId,
         GridQueryCancel cancel,
         ExchangeService exch,
-        Consumer<Query<RowT>> unregister,
+        BiConsumer<Query<RowT>, Throwable> unregister,
         IgniteLogger log,
         int totalFragmentsCnt
     ) {
@@ -108,13 +107,13 @@ public class Query<RowT> implements RunningQuery {
         debug.start();
     }
 
-    /** {@inheritDoc} */
-    @Override public UUID id() {
+    /** Query ID. */
+    public UUID id() {
         return id;
     }
 
-    /** {@inheritDoc} */
-    @Override public QueryState state() {
+    /** Query state. */
+    public QueryState state() {
         return state;
     }
 
@@ -124,10 +123,18 @@ public class Query<RowT> implements RunningQuery {
     }
 
     /** */
-    protected void tryClose() {
+    public void onError(Throwable failure) {
+        tryClose(failure);
+    }
+
+    /** */
+    protected void tryClose(@Nullable Throwable failure) {
         List<RunningFragment<RowT>> fragments = new ArrayList<>(this.fragments);
 
         AtomicInteger cntDown = new AtomicInteger(fragments.size());
+
+        if (cntDown.get() == 0)
+            unregister.accept(this, failure);
 
         for (RunningFragment<RowT> frag : fragments) {
             frag.context().execute(() -> {
@@ -135,8 +142,7 @@ public class Query<RowT> implements RunningQuery {
                 frag.context().cancel();
 
                 if (cntDown.decrementAndGet() == 0)
-                    unregister.accept(this);
-
+                    unregister.accept(this, failure);
             }, frag.root()::onError);
         }
 
@@ -146,16 +152,14 @@ public class Query<RowT> implements RunningQuery {
         }
     }
 
-    /** {@inheritDoc} */
-    @Override public void cancel() {
+    /** Cancel query. */
+    public void cancel() {
         synchronized (mux) {
             if (state == QueryState.CLOSED)
                 return;
 
             if (state == QueryState.INITED) {
                 state = QueryState.CLOSING;
-
-                assert memoryTracker == null;
 
                 try {
                     exch.closeQuery(initNodeId, id);
@@ -172,9 +176,9 @@ public class Query<RowT> implements RunningQuery {
         }
 
         for (RunningFragment<RowT> frag : fragments)
-            frag.context().execute(() -> frag.root().onError(new ExecutionCancelledException()), frag.root()::onError);
+            frag.context().execute(() -> frag.root().onError(new QueryCancelledException()), frag.root()::onError);
 
-        tryClose();
+        tryClose(queryCanceledException());
     }
 
     /** */
@@ -183,13 +187,8 @@ public class Query<RowT> implements RunningQuery {
             if (state == QueryState.INITED)
                 state = QueryState.EXECUTING;
 
-            if (state == QueryState.CLOSING || state == QueryState.CLOSED) {
-                throw new IgniteSQLException(
-                    "The query was cancelled",
-                    IgniteQueryErrorCode.QUERY_CANCELED,
-                    new ExecutionCancelledException()
-                );
-            }
+            if (state == QueryState.CLOSING || state == QueryState.CLOSED)
+                throw queryCanceledException();
 
             fragments.add(f);
         }
@@ -198,6 +197,15 @@ public class Query<RowT> implements RunningQuery {
     /** */
     public boolean isCancelled() {
         return cancel.isCanceled();
+    }
+
+    /** */
+    protected IgniteSQLException queryCanceledException() {
+        return new IgniteSQLException(
+            "The query was cancelled",
+            IgniteQueryErrorCode.QUERY_CANCELED,
+            new QueryCancelledException()
+        );
     }
 
     /** */
@@ -243,7 +251,7 @@ public class Query<RowT> implements RunningQuery {
             }
 
             if (state0 == QueryState.EXECUTING)
-                tryClose();
+                tryClose(null);
 
             debug.logTimer("Query Finished " + totalFragmentsCnt + " Fragments", System.out, true);
         }

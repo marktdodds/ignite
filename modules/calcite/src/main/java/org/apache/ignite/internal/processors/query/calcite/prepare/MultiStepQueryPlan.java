@@ -30,11 +30,13 @@ public class MultiStepQueryPlan extends AbstractMultiStepPlan {
      * @param fieldsMeta Fields metadata.
      */
     public MultiStepQueryPlan(
+        String qry,
+        String textPlan,
         QueryTemplate queryTemplate,
         FieldsMetadata fieldsMeta,
         @Nullable FieldsMetadata paramsMetadata
     ) {
-        super(queryTemplate, fieldsMeta, paramsMetadata);
+        super(qry, textPlan, queryTemplate, fieldsMeta, paramsMetadata);
     }
 
     /** {@inheritDoc} */
@@ -44,7 +46,7 @@ public class MultiStepQueryPlan extends AbstractMultiStepPlan {
 
     /** {@inheritDoc} */
     @Override public QueryPlan copy() {
-        return new MultiStepQueryPlan(queryTemplate, fieldsMetadata, paramsMetadata);
+        return new MultiStepQueryPlan(query(), textPlan(), queryTemplate, fieldsMetadata, paramsMetadata);
     }
 
     /** {@inheritDoc} */
