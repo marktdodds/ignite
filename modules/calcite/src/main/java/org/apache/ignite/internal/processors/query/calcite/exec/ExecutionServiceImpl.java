@@ -642,8 +642,6 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         Node<Row> node = new LogicalRelImplementor<>(ectx, partitionService(), mailboxRegistry(),
             exchangeService(), failureProcessor()).go(fragment.root());
 
-        timer.start();
-
         qry.run(ectx, execPlan, plan.fieldsMetadata(), node);
 
         Map<UUID, Long> fragmentsPerNode = fragments.stream()
