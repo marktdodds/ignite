@@ -21,6 +21,7 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -800,9 +801,9 @@ public class CacheMetricsSnapshot implements CacheMetrics, Externalizable {
 
     /** {@inheritDoc} */
     @Override
-    public long getCacheSize(UUID nodeId) {
+    public Map<UUID, Long> getPartitionLayout() {
         // NOOP
-        return 0L;
+        return new HashMap<>();
     }
 
     /** {@inheritDoc} */

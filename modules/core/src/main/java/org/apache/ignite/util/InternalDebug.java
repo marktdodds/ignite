@@ -77,9 +77,9 @@ public class InternalDebug {
         this.counter = counter;
     }
 
-    public static void log(String message) {
+    public static void log(String ...message) {
         if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
-            System.out.println(message);
+            System.out.println(String.join(" ", message));
         }
     }
 }

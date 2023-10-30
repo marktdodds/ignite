@@ -267,8 +267,8 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
                 exchangeFinished = true;
             }
 
-            debug.logCounter("Total Iterations", System.out);
-            debug.logTimer("Completeled", System.out);
+//            debug.logCounter("Total Iterations", System.out);
+//            debug.logTimer("Completeled", System.out);
         }
     }
 

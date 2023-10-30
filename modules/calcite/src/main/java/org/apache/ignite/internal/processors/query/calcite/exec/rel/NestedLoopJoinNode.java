@@ -28,6 +28,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
 
 /** */
@@ -58,6 +59,9 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
     /** */
     protected boolean inLoop;
+
+    protected InternalDebug debug = InternalDebug.once("NLJ");
+
 
     /**
      * @param ctx Execution context.
@@ -287,6 +291,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
                             requested--;
                             Row row = handler.concat(left, rightMaterialized.get(rightIdx - 1));
                             downstream().push(row);
+                            debug.counterInc();
                         }
 
                         if (rightIdx == rightMaterialized.size()) {
@@ -309,6 +314,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
                 requested = 0;
                 downstream().end();
+                debug.logCounter("Processed Rows: ", System.out);
             }
         }
     }

@@ -65,7 +65,7 @@ public class SalesmenPerformanceTest1 implements PerformanceTest {
 
         int countB = Integer.parseInt(args.get(2 + totalABuckets));
         int totalBBuckets = Integer.parseInt(args.get(3 + totalABuckets)) * 2;
-        List<Bucket> bBuckets = getBuckets(args.subList(4, 4 + totalBBuckets));
+        List<Bucket> bBuckets = getBuckets(args.subList(4 + totalABuckets, 4 + totalABuckets + totalBBuckets));
 
         System.out.printf("Starting data loading. Table 1: %s / %s, Table 2: %s / %s\n", countA, aBuckets, countB, bBuckets);
         conn.prepareStatement("DELETE FROM table1").execute();

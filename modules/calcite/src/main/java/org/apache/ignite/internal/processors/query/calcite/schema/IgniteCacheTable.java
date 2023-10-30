@@ -16,6 +16,8 @@
  */
 package org.apache.ignite.internal.processors.query.calcite.schema;
 
+import org.apache.ignite.cache.CacheMetrics;
+
 /**
  * Ignite cache-based table.
  */
@@ -29,4 +31,6 @@ public interface IgniteCacheTable extends IgniteTable {
      * Start cache context for lazy caches.
      */
     void ensureCacheStarted();
+
+    CacheMetrics clusterMetrics();
 }

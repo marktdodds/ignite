@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -282,6 +283,14 @@ public class IgniteMdColumnOrigins implements MetadataHandler<BuiltInMetadata.Co
         }
 
         return Collections.singleton(rel.columnOriginsByRelLocalRef(iOutputColumn));
+    }
+
+    public @Nullable Set<RelColumnOrigin> getColumnOrigins(
+            RelSubset rel,
+            RelMetadataQuery mq,
+            int iOutputColumn
+        ) {
+        return mq.getColumnOrigins(rel.getBestOrOriginal(), iOutputColumn);
     }
 
     /**

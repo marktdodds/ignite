@@ -45,6 +45,7 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteC
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
+import org.apache.ignite.util.InternalDebug;
 
 import static org.apache.calcite.rel.RelCollations.EMPTY;
 import static org.apache.calcite.rel.RelCollations.containsOrderless;
@@ -261,6 +262,9 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
             return costFactory.makeInfiniteCost();
 
         double rows = leftCount + rightCount;
+
+        InternalDebug.log("MJ:", costFactory.makeCost(rows,
+                    rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0).toString());
 
         return costFactory.makeCost(rows,
             rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0);

@@ -31,6 +31,7 @@ import org.apache.calcite.schema.Statistic;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.TableScan;
@@ -188,5 +189,9 @@ public class CacheTableImpl extends AbstractTable implements IgniteCacheTable {
     /** {@inheritDoc} */
     @Override public boolean isModifiable() {
         return true;
+    }
+
+    @Override public CacheMetrics clusterMetrics() {
+        return ctx.cache().cache(desc.cacheInfo().config().getName()).clusterMetrics();
     }
 }

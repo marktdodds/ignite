@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Does a basic cross product of random IDs, upper bounded NxN rows.
@@ -32,7 +33,7 @@ public class BasicTest implements PerformanceTest {
 
     @Override
     public void create(Connection conn) throws SQLException {
-        PreparedStatement a = conn.prepareStatement("DROP TABLE IF EXISTS table1; CREATE TABLE table1 (id int, cacheKey int, joinKey int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheA,AFFINITY_KEY=cacheKey,CACHE_NAME=CacheA\"");
+        PreparedStatement a = conn.prepareStatement("DROP TABLE IF EXISTS table1; CREATE TABLE table1 (id int, cacheKey int, joinKey int, sid int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheA,AFFINITY_KEY=cacheKey,CACHE_NAME=CacheA\"");
         a.execute();
 
         PreparedStatement b = conn.prepareStatement("DROP TABLE IF EXISTS table2; CREATE TABLE table2 (id int, cacheKey int, joinKey int, PRIMARY KEY (id, cacheKey)) WITH \"TEMPLATE=CacheB,AFFINITY_KEY=cacheKey,CACHE_NAME=CacheB\"");
@@ -57,16 +58,18 @@ public class BasicTest implements PerformanceTest {
 
         int countB = Integer.parseInt(args.get(2 + totalABuckets));
         int totalBBuckets = Integer.parseInt(args.get(3 + totalABuckets)) * 2;
-        List<Bucket> bBuckets = getBuckets(args.subList(4, 4 + totalBBuckets));
+        List<Bucket> bBuckets = getBuckets(args.subList(4 + totalABuckets, 4 + totalABuckets + totalBBuckets));
 
         System.out.printf("Starting data loading. Table 1: %s / %s, Table 2: %s / %s\n", countA, aBuckets, countB, bBuckets);
         conn.prepareStatement("DELETE FROM table1").execute();
         conn.prepareStatement("DELETE FROM table2").execute();
 
-        PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, cacheKey, joinKey) VALUES (?, ?, ?)");
+        PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, cacheKey, joinKey, sid) VALUES (?, ?, ?, ?)");
+        AtomicInteger sid = new AtomicInteger(0);
         populateTable(countA, aBuckets, a, stmt -> {
             try {
                 stmt.setInt(3, Math.toIntExact((long) (Math.random() * 50)));
+                stmt.setInt(4, sid.getAndIncrement());
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }

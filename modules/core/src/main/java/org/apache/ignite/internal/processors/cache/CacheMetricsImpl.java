@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.cache;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -538,9 +539,10 @@ public class CacheMetricsImpl implements CacheMetrics {
     }
 
     /** {@inheritDoc} */
-    @Override public long getCacheSize(UUID nodeId) {
-        if (nodeId.equals(cctx.localNodeId())) return cacheSize.value();
-        return 0;
+    @Override public Map<UUID, Long> getPartitionLayout() {
+        Map<UUID, Long> m = new HashMap<>();
+        m.put(cctx.localNodeId(), cacheSize.value());
+        return m;
     }
 
 

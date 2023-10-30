@@ -17,26 +17,21 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.List;
-
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.rel.RelNode;
-import org.apache.ignite.internal.processors.query.calcite.rel.AbstractIgniteJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteExchange;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteMergeJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTrimExchange;
-import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Splits a query into a list of query fragments.
@@ -112,33 +107,6 @@ public class Splitter extends IgniteRelShuttle {
     /** {@inheritDoc} */
     @Override public IgniteRel visit(IgniteTableScan rel) {
         return rel.clone(IdGenerator.nextId());
-    }
-
-    /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteNestedLoopJoin rel) {
-        return forceExchangesForJoins(rel);
-    }
-
-    /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteMergeJoin rel) {
-        return forceExchangesForJoins(rel);
-    }
-
-    /**
-     * Replaces a non-exchange inputs with exchanges so the site-selection optimizer can work.
-     * Does not work with a NestedCorrelatedLoopJoin because of the context() sharing between the join node
-     * and the input nodes for correlation ids
-     */
-    public IgniteRel forceExchangesForJoins(AbstractIgniteJoin rel) {
-        for (int i = 0; i < rel.getInputs().size(); i++) {
-            RelNode input = rel.getInput(i);
-            if (!(input instanceof IgniteExchange)) {
-                IgniteExchange exchange = new IgniteExchange(input.getCluster(), input.getTraitSet(), input, TraitUtils.distribution(input));
-                rel.replaceInput(i, exchange);
-            }
-        }
-
-        return processNode(rel);
     }
 
     /** */

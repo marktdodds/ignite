@@ -25,6 +25,7 @@ import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.mxbean.TransactionsMXBean;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -319,6 +320,13 @@ public interface CacheMetrics {
     public long getOffHeapAllocatedSize();
 
     /**
+     * Gets the partition layout for this cache
+     *
+     * @return Map of { node id => local cache size }
+     */
+    public Map<UUID, Long> getPartitionLayout();
+
+    /**
      * Gets number of non-{@code null} values in the cache.
      * Note this method will always return {@code 0}
      *
@@ -335,12 +343,6 @@ public interface CacheMetrics {
      */
     public long getCacheSize();
 
-    /**
-     * Get the cache size for a specific node
-     * @param nodeId The {@link org.apache.ignite.cluster.ClusterNode#id()} for the node
-     * @return Cache size on {nodeId}
-     */
-    public long getCacheSize(UUID nodeId);
 
     /**
      * Gets number of keys in the cache, possibly with {@code null} values.

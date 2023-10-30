@@ -42,6 +42,7 @@ import org.apache.calcite.schema.Statistic;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.internal.cache.query.index.IndexDefinition;
 import org.apache.ignite.internal.cache.query.index.IndexName;
 import org.apache.ignite.internal.cache.query.index.Order;
@@ -50,6 +51,7 @@ import org.apache.ignite.internal.cache.query.index.sorted.IndexKeyDefinition;
 import org.apache.ignite.internal.cache.query.index.sorted.IndexKeyType;
 import org.apache.ignite.internal.cache.query.index.sorted.client.ClientIndexDefinition;
 import org.apache.ignite.internal.cache.query.index.sorted.client.ClientInlineIndex;
+import org.apache.ignite.internal.processors.cache.CacheMetricsSnapshotV2;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
@@ -295,5 +297,9 @@ public class TestTable implements IgniteCacheTable {
     /** */
     @Override public String name() {
         return name;
+    }
+
+    @Override public CacheMetrics clusterMetrics() {
+        return new CacheMetricsSnapshotV2();
     }
 }

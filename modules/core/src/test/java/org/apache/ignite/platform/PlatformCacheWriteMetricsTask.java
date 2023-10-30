@@ -481,11 +481,11 @@ public class PlatformCacheWriteMetricsTask extends ComputeTaskAdapter<Long, Obje
         }
 
         /** {@inheritDoc} */
-        @Override public long getCacheSize(UUID nodeId) {
+        @Override public Map<UUID, Long> getPartitionLayout() {
             Map<UUID, Long> m = new HashMap<>();
             m.put(UUID.fromString("NODE_1"), 30L);
             m.put(UUID.fromString("NODE_2"), 35L);
-            return m.getOrDefault(nodeId, 0L);
+            return m;
         }
 
         /** {@inheritDoc} */

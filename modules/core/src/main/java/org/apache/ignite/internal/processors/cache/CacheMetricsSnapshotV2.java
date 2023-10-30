@@ -835,8 +835,8 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
 
     /** {@inheritDoc} */
     @Override
-    public long getCacheSize(UUID nodeId) {
-        return distributedCacheSizes.getOrDefault(nodeId, 0L);
+    public Map<UUID, Long> getPartitionLayout() {
+        return distributedCacheSizes;
     }
 
     /** {@inheritDoc} */
