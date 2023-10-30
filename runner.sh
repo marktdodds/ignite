@@ -21,6 +21,9 @@ java_args="$java_args -DIGNITE_QUIET=true -DIGNITE_UPDATE_NOTIFIER=false -DIGNIT
 start_class="org.apache.ignite.startup.cmdline.CommandLineStartup"
 config="./config/playground-config.xml"
 modules=":ignite-core,:ignite-calcite,:ignite-indexing,:ignite-spring"
+# NOTE: If any of the submodule POM.XML files change you need to run:
+# ./mvnw clean install -pl :ignite-core,:ignite-calcite,:ignite-indexing,:ignite-spring -Dmaven.test.skip=true -Dmaven.javadoc.skip=true
+# to reinstall the poms into the ~/.m2/ repo so transitive dependencies are resolved correctly.
 
 if [[ $IGNITE_ARGS != "" ]]; then
         java_args="$java_args $IGNITE_ARGS"
