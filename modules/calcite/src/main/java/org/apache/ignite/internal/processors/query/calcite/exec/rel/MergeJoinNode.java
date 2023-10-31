@@ -397,7 +397,6 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
             }
             finally {
                 inLoop = false;
-                debugTimer.counterAdd(System.currentTimeMillis());
             }
 
             if (waitingRight == 0)
@@ -406,12 +405,14 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
             if (waitingLeft == 0)
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
+            debugTimer.counterAdd(System.currentTimeMillis());
+
             if (requested > 0 && ((waitingLeft == NOT_WAITING && left == null && leftInBuf.isEmpty())
                 || (waitingRight == NOT_WAITING && right == null && rightInBuf.isEmpty() && rightMaterialization == null))
             ) {
                 checkJoinFinished();
-                debugTimer.logCounter("Merge Execution Time", System.out);
-                                debugCounter.logCounter("Total Row Count", System.out);
+                debugCounter.logCounter("Merge PR", System.out);
+                debugTimer.logCounter("Merge PT", System.out);
             }
         }
     }

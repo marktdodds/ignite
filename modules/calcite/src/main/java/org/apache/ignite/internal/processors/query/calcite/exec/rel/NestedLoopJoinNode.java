@@ -61,6 +61,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
     protected boolean inLoop;
 
     protected InternalDebug debug = InternalDebug.once("NLJ");
+    protected InternalDebug timer = InternalDebug.once("NLJTimer");
 
 
     /**
@@ -275,6 +276,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         /** */
         @Override protected void join() throws Exception {
+            timer.counterSub(System.currentTimeMillis());
             if (waitingRight == NOT_WAITING) {
                 inLoop = true;
                 try {
@@ -311,10 +313,12 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
             if (waitingLeft == 0 && leftInBuf.isEmpty())
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
+            timer.counterAdd(System.currentTimeMillis());
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
                 requested = 0;
                 downstream().end();
-                debug.logCounter("Processed Rows: ", System.out);
+                debug.logCounter("NLJ PR: ", System.out);
+                timer.logCounter("NLJ PT: ", System.out);
             }
         }
     }

@@ -93,24 +93,23 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(leftCount))
             return costFactory.makeInfiniteCost();
 
-        // Account for distributed join on partition. We assume a roughly even distribution of data
-        RelOptTable table = mq.getTableOrigin(getLeft());
-        if (table != null) {
-            leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
-        }
-
         double rightCount = mq.getRowCount(getRight());
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
         // Account for distributed join on partition. We assume a roughly even distribution of data
-        table = mq.getTableOrigin(getRight());
+        RelOptTable table = mq.getTableOrigin(getLeft());
         if (table != null) { // Could be null if we're doing a join of a join
             leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
         }
 
-        double rows = leftCount * rightCount * mq.getSelectivity(this, getCondition());
+        // Same for the right table
+        table = mq.getTableOrigin(getRight());
+        if (table != null) {
+            leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+        }
 
+        double rows = leftCount * rightCount;
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
         InternalDebug.log("DJ: ", costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0).toString());
