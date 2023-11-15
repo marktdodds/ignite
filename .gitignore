@@ -33,6 +33,7 @@ git-patch-prop-local.sh
 #Ignore all Intellij IDEA files (except default inspections config)
 .idea/
 !.idea/inspectionProfiles/Project_Default.xml
+!.idea/runConfigurations/*
 
 #Visual Studio files
 *.[Oo]bj
