@@ -51,7 +51,7 @@ import java.util.Set;
  * The set of output rows is a subset of the cartesian product of the two
  * inputs; precisely which subset depends on the join condition.
  */
-public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
+public class IgniteDistributedHashJoin extends AbstractIgniteJoin {
     /**
      * Creates a Join.
      *
@@ -65,13 +65,13 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
      *                     LHS and used by the RHS and are not available to
      *                     nodes above this Join in the tree
      */
-    public IgniteDistributedNestedLoopJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
-                                           RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
+    public IgniteDistributedHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
+                                     RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
         super(cluster, traitSet, left, right, condition, variablesSet, joinType);
     }
 
     /**  */
-    public IgniteDistributedNestedLoopJoin(RelInput input) {
+    public IgniteDistributedHashJoin(RelInput input) {
         this(input.getCluster(),
             input.getTraitSet().replace(IgniteConvention.INSTANCE),
             input.getInputs().get(0),
@@ -86,7 +86,7 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DJ"))) return costFactory.makeTinyCost();
+        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_HJ"))) return costFactory.makeTinyCost();
         if (!"true".equalsIgnoreCase(System.getenv("MD_USE_ENHANCEMENTS"))) return costFactory.makeInfiniteCost();
 
         double leftCount = mq.getRowCount(getLeft());
@@ -109,16 +109,17 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
             leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
         }
 
-        double rows = leftCount * rightCount;
+        double rows = leftCount + rightCount;
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
-        InternalDebug.log("DJ: ", costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0).toString());
-        return costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0);
-    }
+        RelOptCost cost = costFactory.makeCost(rows,
+            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST),
+            0,
+            rightSize,
+            0);
+        InternalDebug.log("HJ: ", cost.toString());
 
-    @Override
-    public double estimateRowCount(RelMetadataQuery mq) {
-        return super.estimateRowCount(mq);
+        return cost;
     }
 
     @Override
@@ -138,10 +139,23 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
     }
 
     /** {@inheritDoc} */
+    @Override public double estimateRowCount(RelMetadataQuery mq) {
+        double rowCount = super.estimateRowCount(mq);
+        // Account for distributed join on partition. We assume a roughly even distribution of data
+        // We also know that the "left" table is the local table so thats where the join will
+        // be processed.
+        RelOptTable table = mq.getTableOrigin(getLeft());
+        if (table != null) { // Could be null if we're doing a join of a join
+            rowCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+        }
+        return rowCount;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
                      boolean semiJoinDone) {
-        return new IgniteDistributedNestedLoopJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType);
+        return new IgniteDistributedHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType);
     }
 
     /** {@inheritDoc} */
@@ -153,7 +167,7 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new IgniteDistributedNestedLoopJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
+        return new IgniteDistributedHashJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
             getVariablesSet(), getJoinType());
     }
 }

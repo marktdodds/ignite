@@ -45,6 +45,7 @@ import org.apache.calcite.util.Optionality;
 import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.DistributedHashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
@@ -232,6 +233,8 @@ public enum PlannerPhase {
 
                     // TODO add MD_USE_ENHANCEMENTS FLAG TO THIS
                     DistributedNestedLoopJoinConverterRule.INSTANCE,
+                    DistributedHashJoinConverterRule.INSTANCE,
+
                     // TODO: https://issues.apache.org/jira/browse/IGNITE-16334 join rules ordering is significant here.
                     MergeJoinConverterRule.INSTANCE,
                     CorrelatedNestedLoopJoinRule.INSTANCE,
