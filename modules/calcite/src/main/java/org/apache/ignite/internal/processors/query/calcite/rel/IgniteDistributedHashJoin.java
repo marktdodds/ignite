@@ -86,8 +86,8 @@ public class IgniteDistributedHashJoin extends AbstractIgniteJoin {
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_HJ"))) return costFactory.makeTinyCost();
-        if (!"true".equalsIgnoreCase(System.getenv("MD_USE_ENHANCEMENTS"))) return costFactory.makeInfiniteCost();
+        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_HJ"))) return costFactory.makeZeroCost();
+        if (!"true".equalsIgnoreCase(System.getenv("MD_USE_HJ"))) return costFactory.makeInfiniteCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))

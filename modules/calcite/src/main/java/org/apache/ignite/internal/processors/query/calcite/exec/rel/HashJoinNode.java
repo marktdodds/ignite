@@ -19,49 +19,56 @@ package org.apache.ignite.internal.processors.query.calcite.exec.rel;
 
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHashKey;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHasher;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiPredicate;
+import java.util.Map;
+import java.util.Set;
 
-/** */
+/**  */
 public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     /** Special value to highlights that all row were received and we are not waiting any more. */
     protected static final int NOT_WAITING = -1;
 
-    /** */
-    protected final BiPredicate<Row, Row> cond;
+    /**  */
+    protected final RexNode cond;
 
-    /** */
+    /**  */
     protected final RowHandler<Row> handler;
 
-    /** */
+    /**  */
     protected int requested;
 
-    /** */
+    /**  */
     protected int waitingLeft;
 
-    /** */
+    /**  */
     protected int waitingRight;
 
-    /** */
-    protected RelDataType resultRowType;
+    /**  */
+    protected RelDataType leftRowType;
 
-    /** */
-    protected final List<Row> rightMaterialized = new ArrayList<>(IN_BUFFER_SIZE);
+    /**  */
+    protected final Map<RexHashKey, List<Row>> rightMaterialized = new HashMap<>(IN_BUFFER_SIZE);
 
-    /** */
+    /**  */
     protected final Deque<Row> leftInBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
+    protected final Deque<Row> outboxBuf = new ArrayDeque<>(IO_BATCH_SIZE);
 
-    /** */
+    /**  */
     protected boolean inLoop;
 
     protected InternalDebug debug = InternalDebug.once("HJ");
@@ -69,19 +76,20 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
 
     /**
-     * @param ctx Execution context.
+     * @param ctx  Execution context.
      * @param cond Join expression.
      */
-    private HashJoinNode(ExecutionContext<Row> ctx, RelDataType rowType, BiPredicate<Row, Row> cond, RelDataType resultRowType) {
+    private HashJoinNode(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType) {
         super(ctx, rowType);
 
         this.cond = cond;
         handler = ctx.rowHandler();
-        this.resultRowType = resultRowType;
+        this.leftRowType = leftRowType;
     }
 
     /** {@inheritDoc} */
-    @Override public void request(int rowsCnt) throws Exception {
+    @Override
+    public void request(int rowsCnt) throws Exception {
         assert !F.isEmpty(sources()) && sources().size() == 2;
         assert rowsCnt > 0 && requested == 0;
 
@@ -93,7 +101,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             context().execute(this::doJoin, this::onError);
     }
 
-    /** */
+    /**  */
     private void doJoin() throws Exception {
         checkState();
 
@@ -101,48 +109,57 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     }
 
     /** {@inheritDoc} */
-    @Override protected void rewindInternal() {
+    @Override
+    protected void rewindInternal() {
         requested = 0;
         waitingLeft = 0;
         waitingRight = 0;
 
+        outboxBuf.clear();
         rightMaterialized.clear();
         leftInBuf.clear();
     }
 
     /** {@inheritDoc} */
-    @Override protected Downstream<Row> requestDownstream(int idx) {
+    @Override
+    protected Downstream<Row> requestDownstream(int idx) {
         if (idx == 0)
             return new Downstream<Row>() {
                 /** {@inheritDoc} */
-                @Override public void push(Row row) throws Exception {
+                @Override
+                public void push(Row row) throws Exception {
                     pushLeft(row);
                 }
 
                 /** {@inheritDoc} */
-                @Override public void end() throws Exception {
+                @Override
+                public void end() throws Exception {
                     endLeft();
                 }
 
                 /** {@inheritDoc} */
-                @Override public void onError(Throwable e) {
+                @Override
+                public void onError(Throwable e) {
                     HashJoinNode.this.onError(e);
                 }
             };
         else if (idx == 1)
             return new Downstream<Row>() {
                 /** {@inheritDoc} */
-                @Override public void push(Row row) throws Exception {
+                @Override
+                public void push(Row row) throws Exception {
                     pushRight(row);
                 }
 
                 /** {@inheritDoc} */
-                @Override public void end() throws Exception {
+                @Override
+                public void end() throws Exception {
                     endRight();
                 }
 
                 /** {@inheritDoc} */
-                @Override public void onError(Throwable e) {
+                @Override
+                public void onError(Throwable e) {
                     HashJoinNode.this.onError(e);
                 }
             };
@@ -150,7 +167,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         throw new IndexOutOfBoundsException();
     }
 
-    /** */
+    /**  */
     private void pushLeft(Row row) throws Exception {
         assert downstream() != null;
         assert waitingLeft > 0;
@@ -164,7 +181,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         join();
     }
 
-    /** */
+    /**  */
     private void pushRight(Row row) throws Exception {
         assert downstream() != null;
         assert waitingRight > 0;
@@ -173,7 +190,9 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         waitingRight--;
 
-        rightMaterialized.add(row);
+        RexHashKey hashKey = new RexHasher<>(handler, leftRowType.getFieldCount(), row).go(cond);
+        if (!rightMaterialized.containsKey(hashKey)) rightMaterialized.put(hashKey, new ArrayList<>());
+        rightMaterialized.get(hashKey).add(row);
 
         nodeMemoryTracker.onRowAdded(row);
 
@@ -181,7 +200,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             rightSource().request(waitingRight = IN_BUFFER_SIZE);
     }
 
-    /** */
+    /**  */
     private void endLeft() throws Exception {
         assert downstream() != null;
         assert waitingLeft > 0;
@@ -193,7 +212,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         join();
     }
 
-    /** */
+    /**  */
     private void endRight() throws Exception {
         assert downstream() != null;
         assert waitingRight > 0;
@@ -205,110 +224,114 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         join();
     }
 
-    /** */
+    /** Push downstream or into the outbox if full */
+    protected void pushDownstream(Row r) throws Exception {
+        if (requested > 0) {
+            requested--;
+            downstream().push(r);
+        } else
+            outboxBuf.push(r);
+    }
+
+    protected void emptyOutbox() throws Exception {
+        checkState();
+        while (requested > 0 && !outboxBuf.isEmpty()) {
+            requested--;
+            downstream().push(outboxBuf.remove());
+        }
+    }
+
+    /**  */
     protected Node<Row> leftSource() {
         return sources().get(0);
     }
 
-    /** */
+    /**  */
     protected Node<Row> rightSource() {
         return sources().get(1);
     }
 
-    /** */
+    /**  */
     protected abstract void join() throws Exception;
 
-    /** */
-    @NotNull public static <Row> HashJoinNode<Row> create(ExecutionContext<Row> ctx, RelDataType outputRowType,
-                                                          RelDataType leftRowType, RelDataType rightRowType, JoinRelType joinType, BiPredicate<Row, Row> cond,
-                                                          RelDataType resultRowType) {
+    /**  */
+    @NotNull
+    public static <Row> HashJoinNode<Row> create(ExecutionContext<Row> ctx, RelDataType outputRowType,
+                                                 RelDataType leftRowType, RelDataType rightRowType, JoinRelType joinType,
+                                                 RexNode cond,
+                                                 RelDataType resultRowType) {
         switch (joinType) {
             case INNER:
-                return new InnerJoin<>(ctx, outputRowType, cond, resultRowType);
+                return new InnerJoin<>(ctx, outputRowType, cond, leftRowType);
 
             case LEFT: {
                 RowHandler.RowFactory<Row> rightRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), rightRowType);
 
-                return new LeftJoin<>(ctx, outputRowType, cond, rightRowFactory, resultRowType);
+                return new LeftJoin<>(ctx, outputRowType, cond, rightRowFactory, leftRowType);
             }
 
             case RIGHT: {
                 RowHandler.RowFactory<Row> leftRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), leftRowType);
 
-                return new RightJoin<>(ctx, outputRowType, cond, leftRowFactory, resultRowType);
+                return new RightJoin<>(ctx, outputRowType, cond, leftRowFactory, leftRowType);
             }
 
             case FULL: {
                 RowHandler.RowFactory<Row> leftRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), leftRowType);
                 RowHandler.RowFactory<Row> rightRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), rightRowType);
 
-                return new FullOuterJoin<>(ctx, outputRowType, cond, leftRowFactory, rightRowFactory, resultRowType);
+                return new FullOuterJoin<>(ctx, outputRowType, cond, leftRowFactory, rightRowFactory, leftRowType);
             }
 
             case SEMI:
-                return new SemiJoin<>(ctx, outputRowType, cond, resultRowType);
+                return new SemiJoin<>(ctx, outputRowType, cond, leftRowType);
 
             case ANTI:
-                return new AntiJoin<>(ctx, outputRowType, cond, resultRowType);
+                return new AntiJoin<>(ctx, outputRowType, cond, leftRowType);
 
             default:
                 throw new IllegalStateException("Join type \"" + joinType + "\" is not supported yet");
         }
     }
 
-    /** */
+    /**  */
     private static class InnerJoin<Row> extends HashJoinNode<Row> {
-        /** */
-        private Row left;
-
-        /** */
-        private int rightIdx;
 
         /**
-         * @param ctx Execution context.
+         * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public InnerJoin(ExecutionContext<Row> ctx, RelDataType rowType, BiPredicate<Row, Row> cond, RelDataType resultRowType) {
-            super(ctx, rowType, cond, resultRowType);
+        public InnerJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType) {
+            super(ctx, rowType, cond, leftRowType);
         }
 
-        /** {@inheritDoc} */
-        @Override protected void rewindInternal() {
-            left = null;
-            rightIdx = 0;
-
-            super.rewindInternal();
-        }
-
-        /** */
-        @Override protected void join() throws Exception {
+        /**  */
+        @Override
+        protected void join() throws Exception {
             timer.counterSub(System.currentTimeMillis());
             if (waitingRight == NOT_WAITING) {
                 inLoop = true;
                 try {
-                    while (requested > 0 && (left != null || !leftInBuf.isEmpty())) {
-                        if (left == null)
-                            left = leftInBuf.remove();
 
-                        while (requested > 0 && rightIdx < rightMaterialized.size()) {
-                            checkState();
+                    // Empty the outbox buffer first
+                    emptyOutbox();
 
-                            if (!cond.test(left, rightMaterialized.get(rightIdx++)))
-                                continue;
+                    // Try and process new rows
+                    while (requested > 0 && !leftInBuf.isEmpty()) {
+                        checkState();
+                        Row left = leftInBuf.remove();
 
-                            requested--;
-                            Row row = handler.concat(left, rightMaterialized.get(rightIdx - 1));
-                            downstream().push(row);
-                            debug.counterInc();
+                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        List<Row> bucket = rightMaterialized.get(hashId);
+
+                        if (bucket == null) continue;
+                        for (Row right : bucket) {
+                            Row out = handler.concat(left, right);
+                            pushDownstream(out);
                         }
 
-                        if (rightIdx == rightMaterialized.size()) {
-                            left = null;
-                            rightIdx = 0;
-                        }
                     }
-                }
-                finally {
+                } finally {
                     inLoop = false;
                 }
             }
@@ -320,7 +343,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             timer.counterAdd(System.currentTimeMillis());
-            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
+            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
                 requested = 0;
                 downstream().end();
                 debug.logCounter("HJ PR: ", System.out);
@@ -329,28 +352,19 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         }
     }
 
-    /** */
+    /**  */
     private static class LeftJoin<Row> extends HashJoinNode<Row> {
         /** Right row factory. */
         private final RowHandler.RowFactory<Row> rightRowFactory;
 
-        /** Whether current left row was matched or not. */
-        private boolean matched;
-
-        /** */
-        private Row left;
-
-        /** */
-        private int rightIdx;
-
         /**
-         * @param ctx Execution context.
+         * @param ctx  Execution context.
          * @param cond Join expression.
          */
         public LeftJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
-            BiPredicate<Row, Row> cond,
+            RexNode cond,
             RowHandler.RowFactory<Row> rightRowFactory,
             RelDataType resultRowType
         ) {
@@ -359,101 +373,71 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             this.rightRowFactory = rightRowFactory;
         }
 
-        /** */
-        @Override protected void rewindInternal() {
-            matched = false;
-            left = null;
-            rightIdx = 0;
-
+        /**  */
+        @Override
+        protected void rewindInternal() {
             super.rewindInternal();
         }
 
         /** {@inheritDoc} */
-        @Override protected void join() throws Exception {
-//            if (waitingRight == NOT_WAITING) {
-//                // Do the join
-//                inLoop = true;
-//                try {
-//                    while (requested > 0 && (left != null || !leftInBuf.isEmpty())) {
-//                        if (left == null) {
-//                            left = leftInBuf.remove();
-//
-//                            matched = false;
-//                        }
-//
-//                        while (requested > 0 && rightIdx < rightMaterialized.size()) {
-//                            checkState();
-//
-//                            if (!cond.test(left, rightMaterialized.get(rightIdx++)))
-//                                continue;
-//
-//                            requested--;
-//                            matched = true;
-//
-//                            Row row = handler.concat(left, rightMaterialized.get(rightIdx - 1));
-//                            downstream().push(row);
-//                        }
-//
-//                        if (rightIdx == rightMaterialized.size()) {
-//                            boolean wasPushed = false;
-//
-//                            if (!matched && requested > 0) {
-//                                requested--;
-//                                wasPushed = true;
-//
-//                                downstream().push(handler.concat(left, rightRowFactory.create()));
-//                            }
-//
-//                            if (matched || wasPushed) {
-//                                left = null;
-//                                rightIdx = 0;
-//                            }
-//                        }
-//                    }
-//                }
-//                finally {
-//                    inLoop = false;
-//                }
-//            }
-//
-//            if (waitingRight == 0)
-//                rightSource().request(waitingRight = IN_BUFFER_SIZE);
-//
-//            if (waitingLeft == 0 && leftInBuf.isEmpty())
-//                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
-//
-//            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
-//                requested = 0;
-//                downstream().end();
-//            }
+        @Override
+        protected void join() throws Exception {
+            if (waitingRight == NOT_WAITING) {
+                // Do the join
+                inLoop = true;
+                try {
+
+                    emptyOutbox();
+
+                    while (requested > 0 && !leftInBuf.isEmpty()) {
+                        Row left = leftInBuf.remove();
+
+                        checkState();
+
+                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        List<Row> bucket = rightMaterialized.get(hashId);
+                        if (bucket == null) {
+                            pushDownstream(handler.concat(left, rightRowFactory.create()));
+                        } else for (Row right : bucket) {
+                            Row row = handler.concat(left, right);
+                            pushDownstream(row);
+                        }
+
+                    }
+                } finally {
+                    inLoop = false;
+                }
+            }
+
+            if (waitingRight == 0)
+                rightSource().request(waitingRight = IN_BUFFER_SIZE);
+
+            if (waitingLeft == 0 && leftInBuf.isEmpty())
+                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
+
+            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
+                requested = 0;
+                downstream().end();
+            }
         }
     }
 
-    /** */
+    /**  */
     private static class RightJoin<Row> extends HashJoinNode<Row> {
         /** Right row factory. */
         private final RowHandler.RowFactory<Row> leftRowFactory;
 
-        /** */
-        private BitSet rightNotMatchedIndexes;
-
-        /** */
-        private int lastPushedInd;
-
-        /** */
-        private Row left;
-
-        /** */
-        private int rightIdx;
+        /**  */
+        private Set<RexHashKey> rightNotMatched;
 
         /**
-         * @param ctx Execution context.
+         * @param ctx  Execution context.
          * @param cond Join expression.
          */
         public RightJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
-            BiPredicate<Row, Row> cond,
+            RexNode cond,
             RowHandler.RowFactory<Row> leftRowFactory,
             RelDataType resultRowType
         ) {
@@ -463,100 +447,82 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         }
 
         /** {@inheritDoc} */
-        @Override protected void rewindInternal() {
-            left = null;
-            rightNotMatchedIndexes.clear();
-            lastPushedInd = 0;
-            rightIdx = 0;
-
+        @Override
+        protected void rewindInternal() {
+            rightNotMatched.clear();
             super.rewindInternal();
         }
 
         /** {@inheritDoc} */
-        @Override protected void join() throws Exception {
-//            if (waitingRight == NOT_WAITING) {
-//                if (rightNotMatchedIndexes == null) {
-//                    rightNotMatchedIndexes = new BitSet(rightMaterialized.size());
-//
-//                    rightNotMatchedIndexes.set(0, rightMaterialized.size());
-//                }
-//
-//                inLoop = true;
-//                try {
-//                    while (requested > 0 && (left != null || !leftInBuf.isEmpty())) {
-//                        if (left == null)
-//                            left = leftInBuf.remove();
-//
-//                        while (requested > 0 && rightIdx < rightMaterialized.size()) {
-//                            checkState();
-//
-//                            Row right = rightMaterialized.get(rightIdx++);
-//
-//                            if (!cond.test(left, right))
-//                                continue;
-//
-//                            requested--;
-//                            rightNotMatchedIndexes.clear(rightIdx - 1);
-//
-//                            Row joined = handler.concat(left, right);
-//                            downstream().push(joined);
-//                        }
-//
-//                        if (rightIdx == rightMaterialized.size()) {
-//                            left = null;
-//                            rightIdx = 0;
-//                        }
-//                    }
-//                }
-//                finally {
-//                    inLoop = false;
-//                }
-//            }
-//
-//            if (waitingLeft == NOT_WAITING && requested > 0 && (rightNotMatchedIndexes != null && !rightNotMatchedIndexes.isEmpty())) {
-//                assert lastPushedInd >= 0;
-//
-//                inLoop = true;
-//                try {
-//                    for (lastPushedInd = rightNotMatchedIndexes.nextSetBit(lastPushedInd);;
-//                        lastPushedInd = rightNotMatchedIndexes.nextSetBit(lastPushedInd + 1)
-//                    ) {
-//                        checkState();
-//
-//                        if (lastPushedInd < 0)
-//                            break;
-//
-//                        Row row = handler.concat(leftRowFactory.create(), rightMaterialized.get(lastPushedInd));
-//
-//                        rightNotMatchedIndexes.clear(lastPushedInd);
-//
-//                        requested--;
-//                        downstream().push(row);
-//
-//                        if (lastPushedInd == Integer.MAX_VALUE || requested <= 0)
-//                            break;
-//                    }
-//                }
-//                finally {
-//                    inLoop = false;
-//                }
-//            }
-//
-//            if (waitingRight == 0)
-//                rightSource().request(waitingRight = IN_BUFFER_SIZE);
-//
-//            if (waitingLeft == 0 && leftInBuf.isEmpty())
-//                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
-//
-//            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null
-//                && leftInBuf.isEmpty() && rightNotMatchedIndexes.isEmpty()) {
-//                requested = 0;
-//                downstream().end();
-//            }
+        @Override
+        protected void join() throws Exception {
+            if (waitingRight == NOT_WAITING) {
+                inLoop = true;
+
+                // Setup the set for non-matched elements
+                if (rightNotMatched == null) {
+                    rightNotMatched = new HashSet<>();
+                    rightNotMatched.addAll(rightMaterialized.keySet());
+                }
+
+                try {
+                    emptyOutbox();
+
+                    while (requested > 0 && !leftInBuf.isEmpty()) {
+
+                        checkState();
+                        Row left = leftInBuf.remove();
+
+                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        List<Row> bucket = rightMaterialized.get(hashId);
+                        if (bucket == null) continue;
+
+                        rightNotMatched.remove(hashId);
+                        for (Row right : bucket) {
+                            pushDownstream(handler.concat(left, right));
+                        }
+                    }
+                } finally {
+                    inLoop = false;
+                }
+
+                // No more left items so push all the right items that werent matched.
+                if (waitingLeft == NOT_WAITING && requested > 0 && leftInBuf.isEmpty()) {
+                    inLoop = true;
+
+                    try {
+                        emptyOutbox();
+                        Iterator<RexHashKey> it = rightNotMatched.iterator();
+                        while (requested > 0 && it.hasNext()) {
+                            checkState();
+                            RexHashKey key = it.next();
+                            it.remove();
+
+                            for (Row right : rightMaterialized.get(key)) {
+                                Row row = handler.concat(leftRowFactory.create(), right);
+                                pushDownstream(row);
+                            }
+                        }
+                    } finally {
+                        inLoop = false;
+                    }
+                }
+            }
+
+            if (waitingRight == 0)
+                rightSource().request(waitingRight = IN_BUFFER_SIZE);
+
+            if (waitingLeft == 0 && leftInBuf.isEmpty())
+                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
+
+            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty() && rightNotMatched.isEmpty()) {
+                requested = 0;
+                downstream().end();
+            }
         }
     }
 
-    /** */
+    /**  */
     private static class FullOuterJoin<Row> extends HashJoinNode<Row> {
         /** Left row factory. */
         private final RowHandler.RowFactory<Row> leftRowFactory;
@@ -564,29 +530,18 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         /** Right row factory. */
         private final RowHandler.RowFactory<Row> rightRowFactory;
 
-        /** Whether current left row was matched or not. */
-        private boolean leftMatched;
+        /**  */
+        private Set<RexHashKey> rightNotMatched;
 
-        /** */
-        private BitSet rightNotMatchedIndexes;
-
-        /** */
-        private int lastPushedInd;
-
-        /** */
-        private Row left;
-
-        /** */
-        private int rightIdx;
 
         /**
-         * @param ctx Execution context.
+         * @param ctx  Execution context.
          * @param cond Join expression.
          */
         public FullOuterJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
-            BiPredicate<Row, Row> cond,
+            RexNode cond,
             RowHandler.RowFactory<Row> leftRowFactory,
             RowHandler.RowFactory<Row> rightRowFactory,
             RelDataType resultRowType
@@ -598,247 +553,165 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         }
 
         /** {@inheritDoc} */
-        @Override protected void rewindInternal() {
-            left = null;
-            leftMatched = false;
-            rightNotMatchedIndexes.clear();
-            lastPushedInd = 0;
-            rightIdx = 0;
-
+        @Override
+        protected void rewindInternal() {
+            rightNotMatched.clear();
             super.rewindInternal();
         }
 
         /** {@inheritDoc} */
-        @Override protected void join() throws Exception {
-//            if (waitingRight == NOT_WAITING) {
-//                if (rightNotMatchedIndexes == null) {
-//                    rightNotMatchedIndexes = new BitSet(rightMaterialized.size());
-//
-//                    rightNotMatchedIndexes.set(0, rightMaterialized.size());
-//                }
-//
-//                inLoop = true;
-//                try {
-//                    while (requested > 0 && (left != null || !leftInBuf.isEmpty())) {
-//                        if (left == null) {
-//                            left = leftInBuf.remove();
-//
-//                            leftMatched = false;
-//                        }
-//
-//                        while (requested > 0 && rightIdx < rightMaterialized.size()) {
-//                            checkState();
-//
-//                            Row right = rightMaterialized.get(rightIdx++);
-//
-//                            if (!cond.test(left, right))
-//                                continue;
-//
-//                            requested--;
-//                            leftMatched = true;
-//                            rightNotMatchedIndexes.clear(rightIdx - 1);
-//
-//                            Row joined = handler.concat(left, right);
-//                            downstream().push(joined);
-//                        }
-//
-//                        if (rightIdx == rightMaterialized.size()) {
-//                            boolean wasPushed = false;
-//
-//                            if (!leftMatched && requested > 0) {
-//                                requested--;
-//                                wasPushed = true;
-//
-//                                downstream().push(handler.concat(left, rightRowFactory.create()));
-//                            }
-//
-//                            if (leftMatched || wasPushed) {
-//                                left = null;
-//                                rightIdx = 0;
-//                            }
-//                        }
-//                    }
-//                }
-//                finally {
-//                    inLoop = false;
-//                }
-//            }
-//
-//            if (waitingLeft == NOT_WAITING && requested > 0 && (rightNotMatchedIndexes != null && !rightNotMatchedIndexes.isEmpty())) {
-//                assert lastPushedInd >= 0;
-//
-//                inLoop = true;
-//                try {
-//                    for (lastPushedInd = rightNotMatchedIndexes.nextSetBit(lastPushedInd);;
-//                        lastPushedInd = rightNotMatchedIndexes.nextSetBit(lastPushedInd + 1)
-//                    ) {
-//                        checkState();
-//
-//                        if (lastPushedInd < 0)
-//                            break;
-//
-//                        Row row = handler.concat(leftRowFactory.create(), rightMaterialized.get(lastPushedInd));
-//
-//                        rightNotMatchedIndexes.clear(lastPushedInd);
-//
-//                        requested--;
-//                        downstream().push(row);
-//
-//                        if (lastPushedInd == Integer.MAX_VALUE || requested <= 0)
-//                            break;
-//                    }
-//                }
-//                finally {
-//                    inLoop = false;
-//                }
-//            }
-//
-//            if (waitingRight == 0)
-//                rightSource().request(waitingRight = IN_BUFFER_SIZE);
-//
-//            if (waitingLeft == 0 && leftInBuf.isEmpty())
-//                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
-//
-//            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null
-//                && leftInBuf.isEmpty() && rightNotMatchedIndexes.isEmpty()) {
-//                requested = 0;
-//                downstream().end();
-//            }
+        @Override
+        protected void join() throws Exception {
+            if (waitingRight == NOT_WAITING) {
+                if (rightNotMatched == null) {
+                    rightNotMatched = new HashSet<>();
+                    rightNotMatched.addAll(rightMaterialized.keySet());
+                }
+
+                inLoop = true;
+                try {
+
+                    emptyOutbox();
+                    while (requested > 0 && !leftInBuf.isEmpty()) {
+
+                        checkState();
+                        Row left = leftInBuf.remove();
+
+                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        List<Row> bucket = rightMaterialized.get(hashId);
+                        if (bucket == null) {
+                            // Left outer
+                            pushDownstream(handler.concat(left, rightRowFactory.create()));
+                            continue;
+                        }
+
+                        rightNotMatched.remove(hashId);
+                        for (Row right : bucket) {
+                            // Inner
+                            pushDownstream(handler.concat(left, right));
+                        }
+
+                    }
+                } finally {
+                    inLoop = false;
+                }
+
+                // No more left items so push all the right items that werent matched.
+                // noinspection DuplicatedCode
+                if (waitingLeft == NOT_WAITING && requested > 0 && leftInBuf.isEmpty()) {
+                    inLoop = true;
+
+                    try {
+                        emptyOutbox();
+                        Iterator<RexHashKey> it = rightNotMatched.iterator();
+                        while (requested > 0 && it.hasNext()) {
+                            checkState();
+                            RexHashKey key = it.next();
+                            it.remove();
+
+                            for (Row right : rightMaterialized.get(key)) {
+                                Row row = handler.concat(leftRowFactory.create(), right);
+                                pushDownstream(row);
+                            }
+                        }
+                    } finally {
+                        inLoop = false;
+                    }
+                }
+
+            }
+
+            if (waitingRight == 0)
+                rightSource().request(waitingRight = IN_BUFFER_SIZE);
+
+            if (waitingLeft == 0 && leftInBuf.isEmpty())
+                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
+
+            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty() && rightNotMatched.isEmpty()) {
+                requested = 0;
+                downstream().end();
+            }
         }
     }
 
-    /** */
+    /**  */
     private static class SemiJoin<Row> extends HashJoinNode<Row> {
-        /** */
-        private Row left;
-
-        /** */
-        private int rightIdx;
 
         /**
-         * @param ctx Execution context.
+         * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public SemiJoin(ExecutionContext<Row> ctx, RelDataType rowType, BiPredicate<Row, Row> cond, RelDataType resultRowType) {
+        public SemiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType resultRowType) {
             super(ctx, rowType, cond, resultRowType);
         }
 
         /** {@inheritDoc} */
-        @Override protected void rewindInternal() {
-            left = null;
-            rightIdx = 0;
+        @Override
+        protected void join() throws Exception {
+            if (waitingRight == NOT_WAITING) {
+                while (requested > 0 && !leftInBuf.isEmpty()) {
 
-            super.rewindInternal();
-        }
+                    checkState();
 
-        /** {@inheritDoc} */
-        @Override protected void join() throws Exception {
-//            if (waitingRight == NOT_WAITING) {
-//                while (requested > 0 && (left != null || !leftInBuf.isEmpty())) {
-//                    if (left == null)
-//                        left = leftInBuf.remove();
-//
-//                    boolean matched = false;
-//
-//                    while (!matched && requested > 0 && rightIdx < rightMaterialized.size()) {
-//                        checkState();
-//
-//                        if (!cond.test(left, rightMaterialized.get(rightIdx++)))
-//                            continue;
-//
-//                        requested--;
-//                        downstream().push(left);
-//
-//                        matched = true;
-//                    }
-//
-//                    if (matched || rightIdx == rightMaterialized.size()) {
-//                        left = null;
-//                        rightIdx = 0;
-//                    }
-//                }
-//            }
-//
-//            if (waitingRight == 0)
-//                rightSource().request(waitingRight = IN_BUFFER_SIZE);
-//
-//            if (waitingLeft == 0 && leftInBuf.isEmpty())
-//                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
-//
-//            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null
-//                && leftInBuf.isEmpty()) {
-//                downstream().end();
-//                requested = 0;
-//            }
+                    Row left = leftInBuf.remove();
+                    RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                    if (rightMaterialized.containsKey(hashId)) pushDownstream(left);
+
+                }
+            }
+
+            if (waitingRight == 0)
+                rightSource().request(waitingRight = IN_BUFFER_SIZE);
+
+            if (waitingLeft == 0 && leftInBuf.isEmpty())
+                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
+
+            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
+                downstream().end();
+                requested = 0;
+            }
         }
     }
 
-    /** */
+    /**  */
     private static class AntiJoin<Row> extends HashJoinNode<Row> {
-        /** */
-        private Row left;
-
-        /** */
-        private int rightIdx;
-
         /**
-         * @param ctx Execution context.
+         * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public AntiJoin(ExecutionContext<Row> ctx, RelDataType rowType, BiPredicate<Row, Row> cond, RelDataType resultRowType) {
+        public AntiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType resultRowType) {
             super(ctx, rowType, cond, resultRowType);
         }
 
-        /** */
-        @Override protected void rewindInternal() {
-            left = null;
-            rightIdx = 0;
-
-            super.rewindInternal();
-        }
 
         /** {@inheritDoc} */
-        @Override protected void join() throws Exception {
-//            if (waitingRight == NOT_WAITING) {
-//                inLoop = true;
-//                try {
-//                    while (requested > 0 && (left != null || !leftInBuf.isEmpty())) {
-//                        if (left == null)
-//                            left = leftInBuf.remove();
-//
-//                        boolean matched = false;
-//
-//                        while (!matched && rightIdx < rightMaterialized.size()) {
-//                            checkState();
-//
-//                            if (cond.test(left, rightMaterialized.get(rightIdx++)))
-//                                matched = true;
-//                        }
-//
-//                        if (!matched) {
-//                            requested--;
-//                            downstream().push(left);
-//                        }
-//
-//                        left = null;
-//                        rightIdx = 0;
-//                    }
-//                }
-//                finally {
-//                    inLoop = false;
-//                }
-//            }
-//
-//            if (waitingRight == 0)
-//                rightSource().request(waitingRight = IN_BUFFER_SIZE);
-//
-//            if (waitingLeft == 0 && leftInBuf.isEmpty())
-//                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
-//
-//            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
-//                requested = 0;
-//                downstream().end();
-//            }
+        @Override
+        protected void join() throws Exception {
+            if (waitingRight == NOT_WAITING) {
+                inLoop = true;
+                try {
+                    while (requested > 0 && !leftInBuf.isEmpty()) {
+
+                        checkState();
+                        Row left = leftInBuf.remove();
+                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        if (!rightMaterialized.containsKey(hashId)) pushDownstream(left);
+                    }
+                } finally {
+                    inLoop = false;
+                }
+            }
+
+            if (waitingRight == 0)
+                rightSource().request(waitingRight = IN_BUFFER_SIZE);
+
+            if (waitingLeft == 0 && leftInBuf.isEmpty())
+                leftSource().request(waitingLeft = IN_BUFFER_SIZE);
+
+            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
+                requested = 0;
+                downstream().end();
+            }
         }
     }
 }

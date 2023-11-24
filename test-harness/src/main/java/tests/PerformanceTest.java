@@ -4,11 +4,13 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -31,10 +33,53 @@ public interface PerformanceTest {
         private final List<Long> queryDuration = new ArrayList<>();
         private final List<Long> fetchDuration = new ArrayList<>();
 
+        private final List<List<Object>> resultRows = new ArrayList<>();
+
+        private Logger log() {
+            return Logger.getLogger(getClass().getName());
+        }
+
+        public void store(ResultSet res) throws SQLException {
+            ResultSetMetaData meta = res.getMetaData();
+            List<Object> row = new ArrayList<>();
+            for (int i = 0; i < meta.getColumnCount(); i++) {
+                row.add(res.getObject(i + 1));
+            }
+            resultRows.add(row);
+        }
+
         public void add(long resultCount, long fetchDuration, long queryDuration) {
-            this.getResultCount().add(resultCount);
-            this.getFetchDuration().add(fetchDuration);
-            this.getQueryDuration().add(queryDuration);
+            getResultCount().add(resultCount);
+            getFetchDuration().add(fetchDuration);
+            getQueryDuration().add(queryDuration);
+        }
+
+        public boolean compare(TestResult otherTestResult) {
+            List<List<Object>> other = otherTestResult.resultRows;
+            if (resultRows.size() != other.size()) {
+                log().severe("[Different sizes] L: " + resultRows.size() + " / R: " + other.size());
+                return false;
+            }
+            for (int i = 0; i < resultRows.size(); i++) {
+                List<Object> left = resultRows.get(i);
+                List<Object> right = other.get(i);
+                if (left.size() != right.size()) {
+                    log().severe("[Different sizes] L: " + left.size() + " / R: " + right.size());
+                    return false;
+                }
+                for (int j = 0; j < left.size(); j++) {
+                    if (!Objects.equals(left.get(j), right.get(j))) {
+                        log().severe("[DIFF @ " + j + "] L: " + left + " / R: " + right);
+                        return false;
+                    }
+                }
+            }
+
+            int random = (int) Math.floor(Math.random() * other.size());
+            log().info("[MATCH] (Sample row) L: " + resultRows.get(random) + " / R: " + other.get(random));
+            log().info("[MATCH] L: " + resultRows.size() + " / R: " + other.size());
+
+            return true;
         }
 
         public List<Long> getResultCount() {
@@ -118,7 +163,7 @@ public interface PerformanceTest {
 
             try {
                 for (int i = 0; i < threads; i++) {
-                    Execution e = new Execution(getTestQuery(args), "jdbc:ignite:thin://" + args.get(0), fetchSize, countResult, testIterations);
+                    Execution e = new Execution(getTestQuery(args), "jdbc:ignite:thin://" + args.get(0), fetchSize, testIterations, countResult, false);
                     Thread t = new Thread(e);
                     t.start();
                     executions.add(new Pair<>(t, e));
@@ -159,6 +204,64 @@ public interface PerformanceTest {
             }
 
         }
+
+        index = args.indexOf("--validate");
+        if (index >= 0) {
+            System.out.println("Starting validation...");
+
+            String host1 = args.get(index + 1);
+            String host2 = args.get(index + 2);
+
+
+            List<Pair<Thread, Execution>> executions = new ArrayList<>();
+
+            try {
+                for (int i = 0; i < 2; i++) {
+                    Execution e = new Execution(getTestQuery(args), "jdbc:ignite:thin://" + host1, 1024, 1, true, true);
+                    Thread t = new Thread(e);
+                    t.start();
+                    executions.add(new Pair<>(t, e));
+                    log().info("Started host1 thread " + i);
+                }
+
+                for (int i = 0; i < 2; i++) {
+                    Execution e = new Execution(getTestQuery(args), "jdbc:ignite:thin://" + host2, 1024, 1, true, true);
+                    Thread t = new Thread(e);
+                    t.start();
+                    executions.add(new Pair<>(t, e));
+                    log().info("Started host2 thread " + i);
+                }
+
+                for (int i = 0; i < 4; i++) {
+                    Thread t = executions.get(i).fst;
+                    Execution e = executions.get(i).snd;
+                    t.join();
+                    e.complete();
+                    log().info("Thread " + i + " complete.");
+                }
+
+                log().info("Threads complete, comparing results");
+
+                TestResult t1 = executions.get(0).snd.result;
+                TestResult t2 = executions.get(1).snd.result;
+                TestResult t3 = executions.get(2).snd.result;
+                TestResult t4 = executions.get(3).snd.result;
+
+                if (!t1.compare(t2)) {
+                    log().severe("Host1#1 != Host1#2");
+                } else if (!t3.compare(t4)) {
+                    log().severe("Host2#1 != Host2#2");
+                } else if (!t1.compare(t3)) {
+                    log().severe("Host1 != Host2");
+                } else {
+                    log().info("Validation Successful");
+                }
+
+            } catch (SQLException | InterruptedException e) {
+                log().severe(e.getMessage());
+            }
+        }
+
     }
 
     default Logger log() {
@@ -174,6 +277,7 @@ public interface PerformanceTest {
         if (index >= 0) return args.get(index + offset);
         else return def;
     }
+
     default void populateTable(int count, List<Bucket> buckets, PreparedStatement stmt, Consumer<PreparedStatement> setParams) throws SQLException {
         int id = 0;
         for (Bucket bucket : buckets) {
@@ -198,14 +302,17 @@ public interface PerformanceTest {
         private final int fetchSize;
         private final boolean countResult;
         private final Connection conn;
+
+        private final boolean storeResults;
         TestResult result = new TestResult();
 
 
-        public Execution(String query, String connUrl, int fetchSize, boolean countResult, int iterations) throws SQLException {
+        public Execution(String query, String connUrl, int fetchSize, int iterations, boolean countResult, boolean storeResults) throws SQLException {
             this.query = query;
             this.fetchSize = fetchSize;
             this.countResult = countResult;
             this.iterations = iterations;
+            this.storeResults = storeResults;
             conn = DriverManager.getConnection(connUrl);
         }
 
@@ -226,6 +333,7 @@ public interface PerformanceTest {
                     int resultCount = 0;
                     if (countResult) {
                         while (result.next()) {
+                            if (storeResults) this.result.store(result);
                             resultCount++;
                         }
                     }

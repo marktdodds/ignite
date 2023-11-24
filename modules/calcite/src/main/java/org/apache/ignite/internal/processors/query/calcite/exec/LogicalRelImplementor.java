@@ -278,9 +278,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
         RelDataType rowType = combinedRowType(ctx.getTypeFactory(), leftType, rightType);
 
-        BiPredicate<Row, Row> cond = expressionFactory.biPredicate(rel.getCondition(), rowType);
-
-        Node<Row> node = HashJoinNode.create(ctx, outType, leftType, rightType, joinType, cond, rowType);
+        Node<Row> node = HashJoinNode.create(ctx, outType, leftType, rightType, joinType, rel.getCondition(), rowType);
 
         Node<Row> leftInput = visit(rel.getLeft());
         Node<Row> rightInput = visit(rel.getRight());

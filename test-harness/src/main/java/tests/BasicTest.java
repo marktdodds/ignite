@@ -28,7 +28,15 @@ public class BasicTest implements PerformanceTest {
 
     @Override
     public String getTestQuery(List<String> args) {
-        return "SELECT * FROM table1 JOIN table2 ON table1.joinKey = table2.joinKey";
+        String join = "INNER JOIN";
+
+        if (args.contains("--leftJoin")) join = "LEFT JOIN";
+        else if (args.contains("--rightJoin")) join = "RIGHT JOIN";
+        else if (args.contains("--fullJoin")) join = "FULL JOIN";
+
+        String qry = "SELECT * FROM table1 " + join + " table2 ON table1.joinKey = table2.joinKey";
+        if (args.contains("--sort")) qry += " ORDER BY table1.id,table2.id ASC";
+        return qry;
     }
 
     @Override
