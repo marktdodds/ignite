@@ -47,6 +47,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNeste
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedHashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.EmptyRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
@@ -76,10 +77,11 @@ import static org.apache.ignite.internal.processors.query.calcite.prepare.Ignite
  * Represents a planner phase with its description and a used rule set.
  */
 public enum PlannerPhase {
-    /** */
+    /**  */
     HEP_DECORRELATE("Heuristic phase to decorrelate subqueries") {
         /** {@inheritDoc} */
-        @Override public RuleSet getRules(PlanningContext ctx) {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
             return ctx.rules(
                 RuleSets.ofList(
                     CoreRules.FILTER_SUB_QUERY_TO_CORRELATE,
@@ -90,15 +92,17 @@ public enum PlannerPhase {
         }
 
         /** {@inheritDoc} */
-        @Override public Program getProgram(PlanningContext ctx) {
+        @Override
+        public Program getProgram(PlanningContext ctx) {
             return hep(getRules(ctx));
         }
     },
 
-    /** */
+    /**  */
     HEP_FILTER_PUSH_DOWN("Heuristic phase to push down filters") {
         /** {@inheritDoc} */
-        @Override public RuleSet getRules(PlanningContext ctx) {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
             return ctx.rules(
                 RuleSets.ofList(
                     FilterScanMergeRule.TABLE_SCAN_SKIP_CORRELATED,
@@ -114,15 +118,17 @@ public enum PlannerPhase {
         }
 
         /** {@inheritDoc} */
-        @Override public Program getProgram(PlanningContext ctx) {
+        @Override
+        public Program getProgram(PlanningContext ctx) {
             return hep(getRules(ctx));
         }
     },
 
-    /** */
+    /**  */
     HEP_PROJECT_PUSH_DOWN("Heuristic phase to push down and merge projects") {
         /** {@inheritDoc} */
-        @Override public RuleSet getRules(PlanningContext ctx) {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
             return ctx.rules(
                 RuleSets.ofList(
                     ProjectScanMergeRule.TABLE_SCAN_SKIP_CORRELATED,
@@ -136,15 +142,17 @@ public enum PlannerPhase {
         }
 
         /** {@inheritDoc} */
-        @Override public Program getProgram(PlanningContext ctx) {
+        @Override
+        public Program getProgram(PlanningContext ctx) {
             return hep(getRules(ctx));
         }
     },
 
-    /** */
+    /**  */
     OPTIMIZATION("Main optimization phase") {
         /** {@inheritDoc} */
-        @Override public RuleSet getRules(PlanningContext ctx) {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
             return ctx.rules(
                 RuleSets.ofList(
                     FilterMergeRule.Config.DEFAULT
@@ -196,7 +204,7 @@ public enum PlannerPhase {
                     AggregateExpandDistinctAggregatesRule.Config.JOIN
                         .withOperandSupplier(op -> op.operand(LogicalAggregate.class)
                             .predicate(agg -> agg.getAggCallList().stream().noneMatch(call ->
-                                    call.getAggregation().requiresGroupOrder() != Optionality.FORBIDDEN))
+                                call.getAggregation().requiresGroupOrder() != Optionality.FORBIDDEN))
                             .anyInputs())
                         .toRule(),
 
@@ -216,7 +224,7 @@ public enum PlannerPhase {
                     // Useful of this rule is not clear now.
                     // CoreRules.AGGREGATE_REDUCE_FUNCTIONS,
 
-                    ((RelRule<?>)PruneEmptyRules.SORT_FETCH_ZERO_INSTANCE).config
+                    ((RelRule<?>) PruneEmptyRules.SORT_FETCH_ZERO_INSTANCE).config
                         .withOperandSupplier(b ->
                             b.operand(LogicalSort.class).anyInputs())
                         .toRule(),
@@ -232,8 +240,11 @@ public enum PlannerPhase {
                     LogicalOrToUnionRule.INSTANCE,
 
                     // TODO add MD_USE_ENHANCEMENTS FLAG TO THIS
-                    DistributedNestedLoopJoinConverterRule.INSTANCE,
-                    DistributedHashJoinConverterRule.INSTANCE,
+                    "true".equalsIgnoreCase(System.getenv("MD_USE_HJ")) ?
+                        DistributedHashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
+
+                    "true".equalsIgnoreCase(System.getenv("MD_USE_DJ")) ?
+                        DistributedNestedLoopJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
 
                     // TODO: https://issues.apache.org/jira/browse/IGNITE-16334 join rules ordering is significant here.
                     MergeJoinConverterRule.INSTANCE,
@@ -267,12 +278,13 @@ public enum PlannerPhase {
         }
 
         /** {@inheritDoc} */
-        @Override public Program getProgram(PlanningContext ctx) {
+        @Override
+        public Program getProgram(PlanningContext ctx) {
             return cbo(getRules(ctx));
         }
     };
 
-    /** */
+    /**  */
     public final String description;
 
     /**

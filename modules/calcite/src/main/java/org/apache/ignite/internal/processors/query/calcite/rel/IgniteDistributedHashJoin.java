@@ -87,7 +87,6 @@ public class IgniteDistributedHashJoin extends AbstractIgniteJoin {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
         if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_HJ"))) return costFactory.makeZeroCost();
-        if (!"true".equalsIgnoreCase(System.getenv("MD_USE_HJ"))) return costFactory.makeInfiniteCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))

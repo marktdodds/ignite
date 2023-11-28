@@ -87,7 +87,6 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
         if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DJ"))) return costFactory.makeZeroCost();
-        if (!"true".equalsIgnoreCase(System.getenv("MD_USE_DJ"))) return costFactory.makeInfiniteCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))
