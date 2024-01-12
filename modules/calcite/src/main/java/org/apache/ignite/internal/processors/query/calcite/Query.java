@@ -253,7 +253,7 @@ public class Query<RowT> {
             if (state0 == QueryState.EXECUTING)
                 tryClose(null);
 
-            debug.logTimer("Query Finished " + totalFragmentsCnt + " Fragments", System.out, true);
+            debug.logTimer("Query Finished " + totalFragmentsCnt + " Fragments", System.out);
         }
     }
 
