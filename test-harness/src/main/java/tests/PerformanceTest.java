@@ -1,5 +1,7 @@
 package tests;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -16,6 +18,14 @@ import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 public interface PerformanceTest {
+
+    static double round(double value, int places) {
+        if (places < 0) throw new IllegalArgumentException();
+
+        BigDecimal bd = BigDecimal.valueOf(value);
+        bd = bd.setScale(places, RoundingMode.HALF_UP);
+        return bd.doubleValue();
+    }
 
     class Pair<T1, T2> {
 
@@ -171,9 +181,11 @@ public interface PerformanceTest {
                 }
 
                 StringBuilder res = new StringBuilder();
-                res.append(String.format("Test Results:\n| %-5s| %-20s| %-20s| %-20s|\n", "ID", "Test Count", "Averge Query Time", "Average Fetch Time"));
-                List<Double> queryTimes = new ArrayList<>();
-                List<Double> fetchTimes = new ArrayList<>();
+                res.append(String.format("Test Results:\n| %-5s| %-12s| %-12s| %-12s| %-12s| %-12s|\n", "ID", "Test Count", "Query Mean", "Query StDev", "Fetch Mean", "Fetch StDev"));
+                List<Double> queryMeans = new ArrayList<>();
+                List<Double> queryVars = new ArrayList<>();
+                List<Double> fetchMeans = new ArrayList<>();
+                List<Double> fetchVars = new ArrayList<>();
 
                 for (int i = 0; i < threads; i++) {
                     Thread t = executions.get(i).fst;
@@ -181,21 +193,31 @@ public interface PerformanceTest {
                     t.join();
                     e.complete();
 
-                    double fetchTime = e.avgFetchTime();
-                    double queryTime = e.avgQueryTime();
+                    double fetchMean = e.meanFetchTime();
+                    double fetchVar = e.varianceFetchTime();
+                    double queryMean = e.meanQueryTime();
+                    double queryVar = e.varianceQueryTime();
 
-                    fetchTimes.add(fetchTime);
-                    queryTimes.add(queryTime);
+                    fetchMeans.add(fetchMean);
+                    fetchVars.add(fetchVar);
+                    queryMeans.add(queryMean);
+                    queryVars.add(queryVar);
+
 
                     res.append(String.format("| %-5s", i))
-                        .append(String.format("| %-20s", e.avgTestCount()))
-                        .append(String.format("| %-20s", queryTime))
-                        .append(String.format("| %-20s|\n", fetchTime));
+                        .append(String.format("| %-12s", e.avgTestCount()))
+                        .append(String.format("| %-12s", round(queryMean, 3)))
+                        .append(String.format("| %-12s", round(Math.sqrt(queryVar), 3)))
+                        .append(String.format("| %-12s", round(fetchMean, 3)))
+                        .append(String.format("| %-12s|\n", round(Math.sqrt(fetchVar), 3)));
                 }
-                res.append(String.format("| %-5s", "Cum"))
-                    .append(String.format("| %-20s", "NA"))
-                    .append(String.format("| %-20s", queryTimes.stream().mapToDouble(Double::doubleValue).average().getAsDouble()))
-                    .append(String.format("| %-20s|\n", fetchTimes.stream().mapToDouble(Double::doubleValue).average().getAsDouble()));
+
+                res.append(String.format("| %-5s", "Avg"))
+                    .append(String.format("| %-12s", "NA"))
+                    .append(String.format("| %-12s", round(queryMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
+                    .append(String.format("| %-12s", round(Math.sqrt(queryVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)))
+                    .append(String.format("| %-12s", round(fetchMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
+                    .append(String.format("| %-12s|\n", round(Math.sqrt(fetchVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)));
 
                 log().info(res.toString());
 
@@ -351,14 +373,33 @@ public interface PerformanceTest {
             return d.isPresent() ? d.getAsDouble() : 0D;
         }
 
-        public double avgQueryTime() {
+        public double meanQueryTime() {
             OptionalDouble d = result.queryDuration.stream().mapToLong(Long::longValue).average();
             return d.isPresent() ? d.getAsDouble() : 0D;
         }
 
-        public double avgFetchTime() {
+        public double meanFetchTime() {
             OptionalDouble d = result.fetchDuration.stream().mapToLong(Long::longValue).average();
             return d.isPresent() ? d.getAsDouble() : 0D;
         }
+
+        public double varianceQueryTime() {
+            double variance = 0;
+            double mean = meanQueryTime();
+            for (int i = 0; i < result.queryDuration.size(); i++) {
+                variance += Math.pow(result.queryDuration.get(i) - mean, 2);
+            }
+            return variance / result.queryDuration.size();
+        }
+
+        public double varianceFetchTime() {
+            double variance = 0;
+            double mean = meanFetchTime();
+            for (int i = 0; i < result.fetchDuration.size(); i++) {
+                variance += Math.pow(result.fetchDuration.get(i) - mean, 2);
+            }
+            return variance / result.fetchDuration.size();
+        }
+
     }
 }
