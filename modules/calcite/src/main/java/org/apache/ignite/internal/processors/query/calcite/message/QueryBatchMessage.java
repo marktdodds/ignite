@@ -17,10 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.message;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectTransient;
@@ -28,54 +25,66 @@ import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemTy
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
 /**
  *
  */
 public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAware {
-    /** */
+
+    /**  */
     private UUID qryId;
 
-    /** */
+    /**  */
     private long fragmentId;
 
-    /** */
+    /**  */
     private long exchangeId;
 
-    /** */
+    /**  */
     private int batchId;
 
-    /** */
+    /**  */
     private boolean last;
 
-    /** */
+    /**  */
+    private int[] marshallableType;
+
+    /**  */
     @GridDirectTransient
     private List<Object> rows;
 
-    /** */
+    /**  */
     @GridDirectCollection(ValueMessage.class)
     private List<ValueMessage> mRows;
 
-    /** */
+    /**  */
     public QueryBatchMessage() {
     }
 
-    /** */
-    public QueryBatchMessage(UUID qryId, long fragmentId, long exchangeId, int batchId, boolean last, List<Object> rows) {
+    /**  */
+    public QueryBatchMessage(UUID qryId, long fragmentId, long exchangeId, int batchId, boolean last, List<Object> rows, RelDataType rowType) {
         this.qryId = qryId;
         this.fragmentId = fragmentId;
         this.exchangeId = exchangeId;
         this.batchId = batchId;
         this.last = last;
         this.rows = rows;
+        this.marshallableType = SmartRowMessage.marshallableTypeFromRowType(rowType);
     }
 
     /** {@inheritDoc} */
-    @Override public UUID queryId() {
+    @Override
+    public UUID queryId() {
         return qryId;
     }
 
     /** {@inheritDoc} */
-    @Override public long fragmentId() {
+    @Override
+    public long fragmentId() {
         return fragmentId;
     }
 
@@ -108,14 +117,15 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
     }
 
     /** {@inheritDoc} */
-    @Override public void prepareMarshal(MarshallingContext ctx) throws IgniteCheckedException {
+    @Override
+    public void prepareMarshal(MarshallingContext ctx) throws IgniteCheckedException {
         if (mRows != null || rows == null)
             return;
 
         mRows = new ArrayList<>(rows.size());
 
         for (Object row : rows) {
-            ValueMessage mRow = CalciteMessageFactory.asMessage(row);
+            ValueMessage mRow = CalciteMessageFactory.asMessage(row, marshallableType);
 
             assert mRow != null;
 
@@ -126,7 +136,8 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
     }
 
     /** {@inheritDoc} */
-    @Override public void prepareUnmarshal(MarshallingContext ctx) throws IgniteCheckedException {
+    @Override
+    public void prepareUnmarshal(MarshallingContext ctx) throws IgniteCheckedException {
         if (rows != null || mRows == null)
             return;
 
@@ -135,6 +146,8 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
         for (ValueMessage mRow : mRows) {
             assert mRow != null;
 
+            if (mRow instanceof SmartRowMessage) ((SmartRowMessage) mRow).setMarshallableType(marshallableType);
+
             mRow.prepareUnmarshal(ctx);
 
             rows.add(mRow.value());
@@ -142,7 +155,8 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
     }
 
     /** {@inheritDoc} */
-    @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
+    @Override
+    public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 
         if (!writer.isHeaderWritten()) {
@@ -189,13 +203,21 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
                 writer.incrementState();
 
+
+            case 6:
+                if (!writer.writeIntArray("marshallableType", marshallableType))
+                    return false;
+
+                writer.incrementState();
+
         }
 
         return true;
     }
 
     /** {@inheritDoc} */
-    @Override public boolean readFrom(ByteBuffer buf, MessageReader reader) {
+    @Override
+    public boolean readFrom(ByteBuffer buf, MessageReader reader) {
         reader.setBuffer(buf);
 
         if (!reader.beforeMessageRead())
@@ -250,18 +272,28 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
                 reader.incrementState();
 
+            case 6:
+                marshallableType = reader.readIntArray("marshallableType");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
         }
 
         return reader.afterMessageRead(QueryBatchMessage.class);
     }
 
     /** {@inheritDoc} */
-    @Override public MessageType type() {
+    @Override
+    public MessageType type() {
         return MessageType.QUERY_BATCH_MESSAGE;
     }
 
     /** {@inheritDoc} */
-    @Override public byte fieldsCount() {
-        return 6;
+    @Override
+    public byte fieldsCount() {
+        return 7;
     }
 }

@@ -231,6 +231,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             downstream().push(r);
         } else
             outboxBuf.push(r);
+
+        debug.counterInc();
     }
 
     protected void emptyOutbox() throws Exception {
@@ -346,8 +348,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
                 requested = 0;
                 downstream().end();
-                debug.logCounter("HJ PR: ", System.out);
-                timer.logCounter("HJ PT: ", System.out);
+                debug.logCounter("HJ PR", System.out);
+                timer.logCounter("HJ PT", System.out);
             }
         }
     }

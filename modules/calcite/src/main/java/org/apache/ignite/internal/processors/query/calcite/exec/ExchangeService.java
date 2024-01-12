@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.query.calcite.exec;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.query.calcite.util.Service;
 
@@ -29,16 +30,17 @@ import org.apache.ignite.internal.processors.query.calcite.util.Service;
 public interface ExchangeService extends Service {
     /**
      * Sends a batch of data to remote node.
-     * @param nodeId Target node ID.
-     * @param qryId Query ID.
-     * @param fragmentId Target fragment ID.
-     * @param exchangeId Exchange ID.
-     * @param batchId Batch ID.
-     * @param last Last batch flag.
-     * @param rows Data rows.
+     * @param nodeId      Target node ID.
+     * @param qryId       Query ID.
+     * @param fragmentId  Target fragment ID.
+     * @param exchangeId  Exchange ID.
+     * @param batchId     Batch ID.
+     * @param last        Last batch flag.
+     * @param rows        Data rows.
+     * @param rowType     Type definition for the row to use smarter marshalling if possible
      */
     <Row> void sendBatch(UUID nodeId, UUID qryId, long fragmentId, long exchangeId, int batchId, boolean last,
-        List<Row> rows) throws IgniteCheckedException;
+                         List<Row> rows, RelDataType rowType) throws IgniteCheckedException;
 
     /**
      * Acknowledges a batch with given ID is processed.

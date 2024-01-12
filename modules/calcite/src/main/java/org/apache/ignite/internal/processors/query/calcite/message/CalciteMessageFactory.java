@@ -27,17 +27,24 @@ import org.apache.ignite.plugin.extensions.communication.MessageFactoryProvider;
 public class CalciteMessageFactory implements MessageFactoryProvider {
     /** {@inheritDoc} */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    @Override public void registerAll(IgniteMessageFactory factory) {
+    @Override
+    public void registerAll(IgniteMessageFactory factory) {
         for (MessageType type : MessageType.values())
-            factory.register(type.directType(), (Supplier)type.factory());
+            factory.register(type.directType(), (Supplier) type.factory());
     }
 
     /**
      * Produces a value message.
      */
-    public static ValueMessage asMessage(Object val) {
+    public static ValueMessage asMessage(Object val, int[] smartMarshallableType) {
         if (val == null)
             return null;
+
+        if (smartMarshallableType != null && smartMarshallableType.length > 0) {
+            SmartRowMessage m = new SmartRowMessage(val);
+            m.setMarshallableType(smartMarshallableType);
+            return m;
+        }
 
         return new GenericValueMessage(val);
     }

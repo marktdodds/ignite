@@ -204,7 +204,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
 
     /** */
     private void sendBatch(UUID nodeId, int batchId, boolean last, List<Row> rows) throws IgniteCheckedException {
-        exchange.sendBatch(nodeId, queryId(), targetFragmentId, exchangeId, batchId, last, rows);
+        exchange.sendBatch(nodeId, queryId(), targetFragmentId, exchangeId, batchId, last, rows, rowType());
         debug.counterAdd(rows.size());
     }
 

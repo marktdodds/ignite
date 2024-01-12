@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Does a basic cross product of random IDs, upper bounded NxN rows.
  * Call args:
  * --create
- * --load (table1 size) (batches) [% bucketId : for i in batches] (table2 size) (batches) [% bucketId : for i in batches]
+ * --load (table1 size) (batches) [% bucketId : for i in batches] (table2 size) (batches) [% bucketId : for i in batches] [--maxId max]
  * Note: batches == 0 => uniform data distribution
  * Sample: --load 6000 2 0.25 1 0.75 4 6000 3 0.5 1 0.25 0 0.25 5
  * Sample: --load 10000 0 10000 0
@@ -72,11 +72,19 @@ public class BasicTest implements PerformanceTest {
         conn.prepareStatement("DELETE FROM table1").execute();
         conn.prepareStatement("DELETE FROM table2").execute();
 
+        int maxId;
+        if (args.contains("--maxId")) maxId = Integer.parseInt(args.get(args.indexOf("--maxId") + 1));
+        else {
+            maxId = 50;
+        }
+
+        System.out.printf("Max id: %s\n", maxId);
+
         PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, cacheKey, joinKey, sid) VALUES (?, ?, ?, ?)");
         AtomicInteger sid = new AtomicInteger(0);
         populateTable(countA, aBuckets, a, stmt -> {
             try {
-                stmt.setInt(3, Math.toIntExact((long) (Math.random() * 50)));
+                stmt.setInt(3, Math.toIntExact((long) (Math.random() * maxId)));
                 stmt.setInt(4, sid.getAndIncrement());
             } catch (SQLException e) {
                 throw new RuntimeException(e);
@@ -86,7 +94,7 @@ public class BasicTest implements PerformanceTest {
         PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, cacheKey, joinKey) VALUES (?, ?, ?)");
         populateTable(countB, bBuckets, b, stmt -> {
             try {
-                stmt.setInt(3, Math.toIntExact((long) (Math.random() * 50)));
+                stmt.setInt(3, Math.toIntExact((long) (Math.random() * maxId)));
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }

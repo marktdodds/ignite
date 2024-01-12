@@ -51,6 +51,9 @@ public enum MessageType {
     GENERIC_VALUE_MESSAGE(307, GenericValueMessage::new),
 
     /** */
+    SMART_ROW_MESSAGE(308, SmartRowMessage::new),
+
+    /** */
     FRAGMENT_MAPPING(350, FragmentMapping::new),
 
     /** */

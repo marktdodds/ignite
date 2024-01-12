@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import com.google.common.collect.ImmutableMap;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.GridKernalContext;
@@ -142,8 +143,8 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
 
     /** {@inheritDoc} */
     @Override public <Row> void sendBatch(UUID nodeId, UUID qryId, long fragmentId, long exchangeId, int batchId,
-        boolean last, List<Row> rows) throws IgniteCheckedException {
-        messageService().send(nodeId, new QueryBatchMessage(qryId, fragmentId, exchangeId, batchId, last, Commons.cast(rows)));
+                                          boolean last, List<Row> rows, RelDataType rowType) throws IgniteCheckedException {
+        messageService().send(nodeId, new QueryBatchMessage(qryId, fragmentId, exchangeId, batchId, last, Commons.cast(rows), rowType));
 
         if (batchId == 0) {
             Query<?> qry = qryRegistry.query(qryId);

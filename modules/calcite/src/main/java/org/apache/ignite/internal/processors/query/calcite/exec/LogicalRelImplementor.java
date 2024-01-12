@@ -76,6 +76,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributed
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteExchange;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexBound;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexCount;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
@@ -270,7 +271,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
 
     /** {@inheritDoc} */
-    @Override public Node<Row> visit(IgniteDistributedHashJoin rel) {
+    @Override public Node<Row> visit(IgniteHashJoin rel) {
         RelDataType outType = rel.getRowType();
         RelDataType leftType = rel.getLeft().getRowType();
         RelDataType rightType = rel.getRight().getRowType();
@@ -286,6 +287,12 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         node.register(F.asList(leftInput, rightInput));
 
         return node;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override public Node<Row> visit(IgniteDistributedHashJoin rel) {
+        return visit((IgniteHashJoin) rel);
     }
 
     /** {@inheritDoc} */

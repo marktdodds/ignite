@@ -52,6 +52,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterR
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.HashAggregateConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexCountRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexMinMaxRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
@@ -240,10 +241,13 @@ public enum PlannerPhase {
                     LogicalOrToUnionRule.INSTANCE,
 
                     // TODO add MD_USE_ENHANCEMENTS FLAG TO THIS
-                    "true".equalsIgnoreCase(System.getenv("MD_USE_HJ")) ?
+                    "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_HJ")) ?
                         DistributedHashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
 
-                    "true".equalsIgnoreCase(System.getenv("MD_USE_DJ")) ?
+                    "true".equalsIgnoreCase(System.getenv("MD_USE_HJ")) ?
+                        HashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
+
+                    "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_NLJ")) ?
                         DistributedNestedLoopJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
 
                     // TODO: https://issues.apache.org/jira/browse/IGNITE-16334 join rules ordering is significant here.
