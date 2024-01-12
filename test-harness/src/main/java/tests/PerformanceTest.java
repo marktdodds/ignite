@@ -186,7 +186,6 @@ public interface PerformanceTest {
                 List<Double> queryVars = new ArrayList<>();
                 List<Double> fetchMeans = new ArrayList<>();
                 List<Double> fetchVars = new ArrayList<>();
-                Long resultCount = executions.get(0).snd.testCount();
 
                 for (int i = 0; i < threads; i++) {
                     Thread t = executions.get(i).fst;
@@ -212,6 +211,8 @@ public interface PerformanceTest {
                         .append(String.format("| %-12s", round(fetchMean, 3)))
                         .append(String.format("| %-12s|\n", round(Math.sqrt(fetchVar), 3)));
                 }
+
+                Long resultCount = executions.get(0).snd.testCount();
 
                 res.append(String.format("| %-5s", "Avg"))
                     .append(String.format("| %-12s", resultCount))
