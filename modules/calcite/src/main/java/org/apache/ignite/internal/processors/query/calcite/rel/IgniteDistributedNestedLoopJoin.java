@@ -86,7 +86,7 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DJ"))) return costFactory.makeZeroCost();
+        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DIST_NLJ"))) return costFactory.makeZeroCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))
