@@ -770,7 +770,10 @@ public class IgniteLogInfoProviderImpl implements IgniteLogInfoProvider {
             msg.nl();
         });
 
-        log.info(msg.toString());
+        if (log.isQuiet())
+            U.quietMultipleLines(false, msg.toString());
+        else
+            log.info(msg.toString());
 
         ctx.cache().context().database().dumpStatistics(log);
     }
