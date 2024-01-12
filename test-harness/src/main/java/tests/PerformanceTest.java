@@ -186,6 +186,7 @@ public interface PerformanceTest {
                 List<Double> queryVars = new ArrayList<>();
                 List<Double> fetchMeans = new ArrayList<>();
                 List<Double> fetchVars = new ArrayList<>();
+                Long resultCount = executions.get(0).snd.testCount();
 
                 for (int i = 0; i < threads; i++) {
                     Thread t = executions.get(i).fst;
@@ -205,7 +206,7 @@ public interface PerformanceTest {
 
 
                     res.append(String.format("| %-5s", i))
-                        .append(String.format("| %-12s", e.avgTestCount()))
+                        .append(String.format("| %-12s", e.testCount()))
                         .append(String.format("| %-12s", round(queryMean, 3)))
                         .append(String.format("| %-12s", round(Math.sqrt(queryVar), 3)))
                         .append(String.format("| %-12s", round(fetchMean, 3)))
@@ -213,7 +214,7 @@ public interface PerformanceTest {
                 }
 
                 res.append(String.format("| %-5s", "Avg"))
-                    .append(String.format("| %-12s", "NA"))
+                    .append(String.format("| %-12s", resultCount))
                     .append(String.format("| %-12s", round(queryMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
                     .append(String.format("| %-12s", round(Math.sqrt(queryVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)))
                     .append(String.format("| %-12s", round(fetchMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
@@ -368,9 +369,8 @@ public interface PerformanceTest {
             }
         }
 
-        public double avgTestCount() {
-            OptionalDouble d = result.resultCount.stream().mapToLong(Long::longValue).average();
-            return d.isPresent() ? d.getAsDouble() : 0D;
+        public Long testCount() {
+            return result.resultCount.get(0);
         }
 
         public double meanQueryTime() {
