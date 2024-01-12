@@ -216,10 +216,10 @@ public interface PerformanceTest {
 
                 res.append(String.format("| %-5s", "Avg"))
                     .append(String.format("| %-12s", resultCount))
-                    .append(String.format("| %-12s", round(queryMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
-                    .append(String.format("| %-12s", round(Math.sqrt(queryVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)))
-                    .append(String.format("| %-12s", round(fetchMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
-                    .append(String.format("| %-12s|\n", round(Math.sqrt(fetchVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)));
+                    .append(String.format(", %-12s", round(queryMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
+                    .append(String.format(", %-12s", round(Math.sqrt(queryVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)))
+                    .append(String.format(", %-12s", round(fetchMeans.stream().mapToDouble(Double::doubleValue).average().getAsDouble(), 3)))
+                    .append(String.format(", %-12s|\n", round(Math.sqrt(fetchVars.stream().mapToDouble(Double::doubleValue).average().getAsDouble()), 3)));
 
                 log().info(res.toString());
 
