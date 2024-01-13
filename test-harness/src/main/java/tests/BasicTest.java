@@ -71,6 +71,7 @@ public class BasicTest implements PerformanceTest {
         System.out.printf("Starting data loading. Table 1: %s / %s, Table 2: %s / %s\n", countA, aBuckets, countB, bBuckets);
 
         if (args.contains("--fresh")) {
+            System.out.println("Clearing tables");
             conn.prepareStatement("DELETE FROM table1").execute();
             conn.prepareStatement("DELETE FROM table2").execute();
         }
