@@ -305,6 +305,7 @@ public interface PerformanceTest {
 
     default void populateTable(int count, List<Bucket> buckets, PreparedStatement stmt, Consumer<PreparedStatement> setParams, int startId) throws SQLException {
         int id = startId;
+        System.out.printf("Starting loading %s rows at id %s\n", count, startId);
         for (Bucket bucket : buckets) {
             double bucketTotal = Math.ceil(bucket.bucketTotal(count));
             for (int i = 0; i < bucketTotal; i++) {
