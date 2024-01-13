@@ -58,7 +58,7 @@ public class SalesmenOrdersTest implements PerformanceTest {
     }
 
     @Override
-    public void populate(Connection conn, List<String> args) throws SQLException {
+    public void populate(Connection conn, List<String> args, Integer startId) throws SQLException {
         int countA = Integer.parseInt(args.get(0));
         int totalABuckets = Integer.parseInt(args.get(1)) * 2;
         List<Bucket> aBuckets = getBuckets(args.subList(2, 2 + totalABuckets));
@@ -73,7 +73,7 @@ public class SalesmenOrdersTest implements PerformanceTest {
 
         PreparedStatement a = conn.prepareStatement("INSERT into salesmen (id, cacheKey) VALUES (?, ?)");
         populateTable(countA, aBuckets, a, stmt -> {
-        });
+        }, startId);
 
         PreparedStatement b = conn.prepareStatement("INSERT into orders (id, cacheKey, salesmenId) VALUES (?, ?, ?)");
         populateTable(countB, bBuckets, b, stmt -> {
@@ -82,7 +82,7 @@ public class SalesmenOrdersTest implements PerformanceTest {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, startId);
 
         PreparedStatement check = conn.prepareStatement("SELECT count(*) from salesmen;");
         check.execute();

@@ -149,7 +149,7 @@ public interface PerformanceTest {
         index = args.indexOf("--load");
         if (index >= 0) {
             try (Connection conn = DriverManager.getConnection("jdbc:ignite:thin://" + args.get(0))) {
-                populate(conn, args.subList(index + 1, args.size()));
+                populate(conn, args.subList(index + 1, args.size()), Integer.parseInt(getArgOrDefault(args, "--startId", 1, "0")));
                 System.out.println("Completed data loading");
             } catch (SQLException e) {
                 Logger.getLogger(PerformanceTest.class.getName()).severe(e.getMessage());
@@ -295,7 +295,7 @@ public interface PerformanceTest {
 
     void create(Connection conn) throws SQLException;
 
-    void populate(Connection conn, List<String> args) throws SQLException;
+    void populate(Connection conn, List<String> args, Integer startId) throws SQLException;
 
     default String getArgOrDefault(List<String> args, String finder, int offset, String def) {
         int index = args.indexOf(finder);
@@ -303,8 +303,8 @@ public interface PerformanceTest {
         else return def;
     }
 
-    default void populateTable(int count, List<Bucket> buckets, PreparedStatement stmt, Consumer<PreparedStatement> setParams) throws SQLException {
-        int id = 0;
+    default void populateTable(int count, List<Bucket> buckets, PreparedStatement stmt, Consumer<PreparedStatement> setParams, int startId) throws SQLException {
+        int id = startId;
         for (Bucket bucket : buckets) {
             double bucketTotal = Math.ceil(bucket.bucketTotal(count));
             for (int i = 0; i < bucketTotal; i++) {

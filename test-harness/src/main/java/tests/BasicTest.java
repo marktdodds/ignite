@@ -59,7 +59,7 @@ public class BasicTest implements PerformanceTest {
     }
 
     @Override
-    public void populate(Connection conn, List<String> args) throws SQLException {
+    public void populate(Connection conn, List<String> args, Integer startId) throws SQLException {
         int countA = Integer.parseInt(args.get(0));
         int totalABuckets = Integer.parseInt(args.get(1)) * 2;
         List<Bucket> aBuckets = getBuckets(args.subList(2, 2 + totalABuckets));
@@ -89,7 +89,7 @@ public class BasicTest implements PerformanceTest {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, startId);
 
         PreparedStatement b = conn.prepareStatement("INSERT into table2 (id, cacheKey, joinKey) VALUES (?, ?, ?)");
         populateTable(countB, bBuckets, b, stmt -> {
@@ -98,7 +98,7 @@ public class BasicTest implements PerformanceTest {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, startId);
 
         PreparedStatement check = conn.prepareStatement("SELECT count(*) from table1;");
         check.execute();
