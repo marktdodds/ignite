@@ -24,6 +24,6 @@ export CLASSPATH=$(find $(pwd)/test-harness -name classes -type d | tr "\n" ":")
 rm $cp_file
 
 start_class=tests.$test
-echo $CLASSPATH
+#echo $CLASSPATH
 java $java_args $start_class $config $@
 #./mvnw -e -pl :ignite-core,:ignite-spring,:ignite-indexing,:ignite-calcite compile exec:java -Dexec.mainClass="$start_class" -Dexec.args="$config" 2>&1 | tee logs/$(hostname).$(date +'%Y-%m-%d-%H%M%S').log
