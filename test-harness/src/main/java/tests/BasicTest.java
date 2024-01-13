@@ -69,8 +69,11 @@ public class BasicTest implements PerformanceTest {
         List<Bucket> bBuckets = getBuckets(args.subList(4 + totalABuckets, 4 + totalABuckets + totalBBuckets));
 
         System.out.printf("Starting data loading. Table 1: %s / %s, Table 2: %s / %s\n", countA, aBuckets, countB, bBuckets);
-        conn.prepareStatement("DELETE FROM table1").execute();
-        conn.prepareStatement("DELETE FROM table2").execute();
+
+        if (args.contains("--fresh")) {
+            conn.prepareStatement("DELETE FROM table1").execute();
+            conn.prepareStatement("DELETE FROM table2").execute();
+        }
 
         int maxId;
         if (args.contains("--maxId")) maxId = Integer.parseInt(args.get(args.indexOf("--maxId") + 1));
