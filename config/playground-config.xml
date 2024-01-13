@@ -25,6 +25,12 @@
 		<property name="peerClassLoadingEnabled" value="true"/>
 		<property name="metricsLogFrequency" value="60000"/>
 
+		<property name="clientConnectorConfiguration">
+			<bean class="org.apache.ignite.configuration.ClientConnectorConfiguration">
+				<property name="host" value="10g"/>
+			</bean>
+		</property>
+
 		<property name="cacheConfiguration">
 			<list>
 				<bean abstract="true" class="org.apache.ignite.configuration.CacheConfiguration" id="cache-template-bean">
