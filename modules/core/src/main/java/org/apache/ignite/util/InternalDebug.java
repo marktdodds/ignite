@@ -79,7 +79,11 @@ public class InternalDebug {
 
     public static void log(String ...message) {
         if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
-            System.out.println(String.join(" ", message));
+            alwaysLog(message);
         }
+    }
+
+    public static void alwaysLog(String ...message) {
+        System.out.println(String.join(" ", message));
     }
 }

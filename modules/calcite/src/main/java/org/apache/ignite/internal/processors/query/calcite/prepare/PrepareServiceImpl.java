@@ -173,7 +173,7 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
         // Extract parameters meta.
         FieldsMetadata params = DynamicParamTypeExtractor.go(igniteRel);
 
-        InternalDebug.log(igniteRel.explain());
+        InternalDebug.alwaysLog(igniteRel.explain());
 
         // Split query plan to query fragments.
         List<Fragment> fragments = new Splitter().go(igniteRel);
