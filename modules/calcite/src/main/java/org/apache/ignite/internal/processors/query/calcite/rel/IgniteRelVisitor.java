@@ -69,6 +69,12 @@ public interface IgniteRelVisitor<T> {
      */
     T visit(IgniteDistributedHashJoin rel);
 
+
+    /**
+     * See {@link IgniteRelVisitor#visit(IgniteRel)}
+     */
+    T visit(IgniteDistributedMergeJoin rel);
+
     /**
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */

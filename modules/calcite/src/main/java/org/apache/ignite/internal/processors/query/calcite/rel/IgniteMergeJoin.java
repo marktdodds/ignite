@@ -52,19 +52,19 @@ import static org.apache.calcite.rel.core.JoinRelType.FULL;
 import static org.apache.calcite.rel.core.JoinRelType.LEFT;
 import static org.apache.calcite.rel.core.JoinRelType.RIGHT;
 
-/** */
+/**  */
 public class IgniteMergeJoin extends AbstractIgniteJoin {
     /**
      * Collation of a left child. Keep it here to restore after deserialization.
      */
-    private final RelCollation leftCollation;
+    protected final RelCollation leftCollation;
 
     /**
      * Collation of a right child. Keep it here to restore after deserialization.
      */
-    private final RelCollation rightCollation;
+    protected final RelCollation rightCollation;
 
-    /** */
+    /**  */
     public IgniteMergeJoin(
         RelOptCluster cluster,
         RelTraitSet traitSet,
@@ -78,7 +78,7 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
             left.getTraitSet().getCollation(), right.getTraitSet().getCollation());
     }
 
-    /** */
+    /**  */
     public IgniteMergeJoin(RelInput input) {
         this(
             input.getCluster(),
@@ -88,13 +88,13 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
             input.getExpression("condition"),
             ImmutableSet.copyOf(Commons.transform(input.getIntegerList("variablesSet"), CorrelationId::new)),
             input.getEnum("joinType", JoinRelType.class),
-            ((RelInputEx)input).getCollation("leftCollation"),
-            ((RelInputEx)input).getCollation("rightCollation")
+            ((RelInputEx) input).getCollation("leftCollation"),
+            ((RelInputEx) input).getCollation("rightCollation")
         );
     }
 
-    /** */
-    private IgniteMergeJoin(
+    /**  */
+    protected IgniteMergeJoin(
         RelOptCluster cluster,
         RelTraitSet traitSet,
         RelNode left,
@@ -112,25 +112,29 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
     }
 
     /** {@inheritDoc} */
-    @Override public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right,
-        JoinRelType joinType, boolean semiJoinDone) {
+    @Override
+    public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right,
+                     JoinRelType joinType, boolean semiJoinDone) {
         return new IgniteMergeJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType,
             left.getTraitSet().getCollation(), right.getTraitSet().getCollation());
     }
 
     /** {@inheritDoc} */
-    @Override public <T> T accept(IgniteRelVisitor<T> visitor) {
+    @Override
+    public <T> T accept(IgniteRelVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
+    @Override
+    public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteMergeJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
             getVariablesSet(), getJoinType(), leftCollation, rightCollation);
     }
 
     /** {@inheritDoc} */
-    @Override public List<Pair<RelTraitSet, List<RelTraitSet>>> deriveCollation(
+    @Override
+    public List<Pair<RelTraitSet, List<RelTraitSet>>> deriveCollation(
         RelTraitSet nodeTraits,
         List<RelTraitSet> inputTraits
     ) {
@@ -165,7 +169,8 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
     }
 
     /** {@inheritDoc} */
-    @Override public Pair<RelTraitSet, List<RelTraitSet>> passThroughCollation(
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughCollation(
         RelTraitSet required,
         List<RelTraitSet> inputTraits
     ) {
@@ -197,8 +202,7 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
             nodeCollation = collation;
             leftCollation = collation;
             rightCollation = collation.apply(buildTransposeMapping(true));
-        }
-        else if (containsOrderless(leftKeys, collation)) {
+        } else if (containsOrderless(leftKeys, collation)) {
             if (joinType == RIGHT)
                 return defaultCollationPair(required, left, right);
 
@@ -207,8 +211,7 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
             nodeCollation = collation;
             leftCollation = extendCollation(collation, leftKeys);
             rightCollation = leftCollation.apply(buildTransposeMapping(true));
-        }
-        else if (containsOrderless(collation, leftKeys) && reqKeys.stream().allMatch(i -> i < leftInputFieldCount)) {
+        } else if (containsOrderless(collation, leftKeys) && reqKeys.stream().allMatch(i -> i < leftInputFieldCount)) {
             if (joinType == RIGHT)
                 return defaultCollationPair(required, left, right);
 
@@ -217,24 +220,21 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
             nodeCollation = collation;
             leftCollation = collation;
             rightCollation = leftCollation.apply(buildTransposeMapping(true));
-        }
-        else if (reqKeySet.equals(rightKeySet)) {
+        } else if (reqKeySet.equals(rightKeySet)) {
             if (joinType == LEFT)
                 return defaultCollationPair(required, left, right);
 
             nodeCollation = collation;
             rightCollation = RelCollations.shift(collation, -leftInputFieldCount);
             leftCollation = rightCollation.apply(buildTransposeMapping(false));
-        }
-        else if (containsOrderless(rightKeys, collation)) {
+        } else if (containsOrderless(rightKeys, collation)) {
             if (joinType == LEFT)
                 return defaultCollationPair(required, left, right);
 
             nodeCollation = collation;
             rightCollation = RelCollations.shift(extendCollation(collation, rightKeys), -leftInputFieldCount);
             leftCollation = rightCollation.apply(buildTransposeMapping(false));
-        }
-        else
+        } else
             return defaultCollationPair(required, left, right);
 
         return Pair.of(
@@ -247,8 +247,9 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
     }
 
     /** {@inheritDoc} */
-    @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
         double leftCount = mq.getRowCount(getLeft());
 
@@ -260,14 +261,21 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        double rows = leftCount + rightCount;
+        return computeSelfCost(costFactory, leftCount, rightCount);
+    }
 
-        return costFactory.makeCost(rows,
-            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0);
+    /**
+     * Computes the self cost for a hash join given a left and right count. Used here and in { #org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin }
+     * which modifies the leftCount to account for the distribution of join nodes
+     */
+    protected RelOptCost computeSelfCost(IgniteCostFactory costFactory, double leftCount, double rightCount) {
+        double rows = leftCount + rightCount;
+        return costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0);
     }
 
     /** {@inheritDoc} */
-    @Override public RelWriter explainTerms(RelWriter pw) {
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw)
             .item("leftCollation", leftCollation)
             .item("rightCollation", rightCollation);

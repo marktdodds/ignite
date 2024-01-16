@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.query.calcite.prepare;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
@@ -90,6 +91,13 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
 
     /** {@inheritDoc} */
     @Override public IgniteRel visit(IgniteDistributedHashJoin rel) {
+        rexShuttle.apply(rel.getCondition());
+
+        return super.visit(rel);
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteRel visit(IgniteDistributedMergeJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);

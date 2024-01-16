@@ -46,6 +46,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedHashJoinConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.DistributedMergeJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.EmptyRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
@@ -243,6 +244,9 @@ public enum PlannerPhase {
                     // TODO add MD_USE_ENHANCEMENTS FLAG TO THIS
                     "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_HJ")) ?
                         DistributedHashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
+
+                    "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_MJ")) ?
+                        DistributedMergeJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
 
                     "true".equalsIgnoreCase(System.getenv("MD_USE_HJ")) ?
                         HashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,

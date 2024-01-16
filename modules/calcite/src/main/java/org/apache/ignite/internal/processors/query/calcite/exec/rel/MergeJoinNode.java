@@ -67,9 +67,6 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
      */
     protected final boolean distributed;
 
-    protected InternalDebug debugTimer = InternalDebug.once("MergeJoinTimer");
-    protected InternalDebug debugCounter = InternalDebug.once("MergeJoinCounter");
-
     /**
      * @param ctx Execution context.
      * @param comp Join expression.
@@ -303,7 +300,6 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
         /** {@inheritDoc} */
         @Override protected void join() throws Exception {
             inLoop = true;
-            debugTimer.counterSub(System.currentTimeMillis());
             try {
                 while (requested > 0 && (left != null || !leftInBuf.isEmpty()) && (right != null || !rightInBuf.isEmpty()
                     || rightMaterialization != null)) {
@@ -391,7 +387,6 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
 
                     requested--;
                     downstream().push(row);
-                    debugCounter.counterInc();
 
                 }
             }
@@ -405,14 +400,11 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
             if (waitingLeft == 0)
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
-            debugTimer.counterAdd(System.currentTimeMillis());
 
             if (requested > 0 && ((waitingLeft == NOT_WAITING && left == null && leftInBuf.isEmpty())
                 || (waitingRight == NOT_WAITING && right == null && rightInBuf.isEmpty() && rightMaterialization == null))
             ) {
                 checkJoinFinished();
-                debugCounter.logCounter("Merge PR", System.out);
-                debugTimer.logCounter("Merge PT", System.out);
             }
         }
     }
@@ -858,7 +850,6 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
         /** {@inheritDoc} */
         @Override protected void join() throws Exception {
             inLoop = true;
-            debugTimer.counterSub(System.currentTimeMillis());
             try {
                 while (requested > 0 && !(left == null && leftInBuf.isEmpty() && waitingLeft != NOT_WAITING)
                     && !(right == null && rightInBuf.isEmpty() && rightMaterialization == null && waitingRight != NOT_WAITING)) {
@@ -1008,12 +999,10 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
 
                     requested--;
                     downstream().push(row);
-                    debugCounter.counterInc();
                 }
             }
             finally {
                 inLoop = false;
-                debugTimer.counterAdd(System.currentTimeMillis());
             }
 
             if (waitingRight == 0)
@@ -1026,8 +1015,6 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
                 && waitingRight == NOT_WAITING && right == null && rightInBuf.isEmpty() && rightMaterialization == null
             ) {
                 checkJoinFinished();
-                debugTimer.logCounter("Merge Execution Time", System.out);
-                debugCounter.logCounter("Total Row Count", System.out);
             }
         }
     }
