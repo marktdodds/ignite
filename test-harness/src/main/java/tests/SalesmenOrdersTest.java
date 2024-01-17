@@ -68,8 +68,11 @@ public class SalesmenOrdersTest implements PerformanceTest {
         List<Bucket> bBuckets = getBuckets(args.subList(4 + totalABuckets, 4 + totalABuckets + totalBBuckets));
 
         System.out.printf("Starting data loading. Table 1: %s / %s, Table 2: %s / %s\n", countA, aBuckets, countB, bBuckets);
-        conn.prepareStatement("DELETE FROM salesmen").execute();
-        conn.prepareStatement("DELETE FROM orders").execute();
+
+        if (args.contains("--fresh")) {
+            conn.prepareStatement("DELETE FROM salesmen").execute();
+            conn.prepareStatement("DELETE FROM orders").execute();
+        }
 
         PreparedStatement a = conn.prepareStatement("INSERT into salesmen (id, cacheKey) VALUES (?, ?)");
         populateTable(countA, aBuckets, a, stmt -> {
