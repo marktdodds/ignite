@@ -57,6 +57,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverte
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexCountRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexMinMaxRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.MakeHashJoinCachableRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.MergeJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.NestedLoopJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.ProjectConverterRule;
@@ -289,6 +290,20 @@ public enum PlannerPhase {
         @Override
         public Program getProgram(PlanningContext ctx) {
             return cbo(getRules(ctx));
+        }
+    },
+
+    CACHE_OPTIMIZATION("Cache-aware Optimizations") {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
+            return ctx.rules(RuleSets.ofList(
+                MakeHashJoinCachableRule.Config.DEFAULT.toRule()
+            ));
+        }
+
+        @Override
+        public Program getProgram(PlanningContext ctx) {
+            return hep(getRules(ctx));
         }
     };
 

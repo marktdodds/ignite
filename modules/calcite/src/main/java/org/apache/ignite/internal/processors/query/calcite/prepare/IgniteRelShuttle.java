@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
 import java.util.List;
+
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCollect;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
@@ -53,183 +54,225 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapHash
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
+import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteDistributedHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
-/** */
+/**  */
 public class IgniteRelShuttle implements IgniteRelVisitor<IgniteRel> {
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteSender rel) {
+    @Override
+    public IgniteRel visit(IgniteSender rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteFilter rel) {
+    @Override
+    public IgniteRel visit(IgniteFilter rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTrimExchange rel) {
+    @Override
+    public IgniteRel visit(IgniteTrimExchange rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteProject rel) {
+    @Override
+    public IgniteRel visit(IgniteProject rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteNestedLoopJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteNestedLoopJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteDistributedNestedLoopJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteDistributedNestedLoopJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteHashJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteHashJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteDistributedHashJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteDistributedHashJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteDistributedMergeJoin rel) {
+    @Override
+    public IgniteRel visit(CacheableIgniteDistributedHashJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteCorrelatedNestedLoopJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteDistributedMergeJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteMergeJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteCorrelatedNestedLoopJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteExchange rel) {
+    @Override
+    public IgniteRel visit(IgniteMergeJoin rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteColocatedHashAggregate rel) {
+    @Override
+    public IgniteRel visit(IgniteExchange rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteMapHashAggregate rel) {
+    @Override
+    public IgniteRel visit(IgniteColocatedHashAggregate rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteReduceHashAggregate rel) {
+    @Override
+    public IgniteRel visit(IgniteMapHashAggregate rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteColocatedSortAggregate rel) {
+    @Override
+    public IgniteRel visit(IgniteReduceHashAggregate rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteMapSortAggregate rel) {
+    @Override
+    public IgniteRel visit(IgniteColocatedSortAggregate rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteReduceSortAggregate rel) {
+    @Override
+    public IgniteRel visit(IgniteMapSortAggregate rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableModify rel) {
+    @Override
+    public IgniteRel visit(IgniteReduceSortAggregate rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteUnionAll rel) {
+    @Override
+    public IgniteRel visit(IgniteTableModify rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteSort rel) {
+    @Override
+    public IgniteRel visit(IgniteUnionAll rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteLimit rel) {
+    @Override
+    public IgniteRel visit(IgniteSort rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteIndexScan rel) {
+    @Override
+    public IgniteRel visit(IgniteLimit rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteIndexCount rel) {
+    @Override
+    public IgniteRel visit(IgniteIndexScan rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteIndexBound rel) {
+    @Override
+    public IgniteRel visit(IgniteIndexCount rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableScan rel) {
+    @Override
+    public IgniteRel visit(IgniteIndexBound rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteReceiver rel) {
+    @Override
+    public IgniteRel visit(IgniteTableScan rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteValues rel) {
+    @Override
+    public IgniteRel visit(IgniteReceiver rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableSpool rel) {
+    @Override
+    public IgniteRel visit(IgniteValues rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteSortedIndexSpool rel) {
+    @Override
+    public IgniteRel visit(IgniteTableSpool rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteHashIndexSpool rel) {
+    @Override
+    public IgniteRel visit(IgniteSortedIndexSpool rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteSetOp rel) {
+    @Override
+    public IgniteRel visit(IgniteHashIndexSpool rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableFunctionScan rel) {
+    @Override
+    public IgniteRel visit(IgniteSetOp rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteCollect rel) {
+    @Override
+    public IgniteRel visit(IgniteTableFunctionScan rel) {
         return processNode(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteRel rel) {
+    @Override
+    public IgniteRel visit(IgniteCollect rel) {
+        return processNode(rel);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public IgniteRel visit(IgniteRel rel) {
         return rel.accept(this);
     }
 

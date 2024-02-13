@@ -26,11 +26,27 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexCorrelVariable;
+import org.apache.calcite.rex.RexDynamicParam;
+import org.apache.calcite.rex.RexFieldAccess;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexLocalRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
+import org.apache.calcite.rex.RexPatternFieldRef;
+import org.apache.calcite.rex.RexRangeRef;
+import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.rex.RexTableInputRef;
+import org.apache.calcite.rex.RexVisitor;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
@@ -38,7 +54,10 @@ import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistribut
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -50,22 +69,24 @@ import java.util.Set;
  * inputs; precisely which subset depends on the join condition.
  */
 public class IgniteDistributedHashJoin extends IgniteHashJoin {
-    /**
-     * Creates a Join.
-     *
-     * @param cluster      Cluster
-     * @param traitSet     Trait set
-     * @param left         Left input
-     * @param right        Right input
-     * @param condition    Join condition
-     * @param joinType     Join type
-     * @param variablesSet Set variables that are set by the
-     *                     LHS and used by the RHS and are not available to
-     *                     nodes above this Join in the tree
-     */
+
+    private final RexNode rightFilterCondition;
+    private final ImmutableBitSet rightRequiredColumns;
+
     public IgniteDistributedHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
                                      RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
         super(cluster, traitSet, left, right, condition, variablesSet, joinType);
+        rightFilterCondition = null;
+        rightRequiredColumns = null;
+    }
+
+
+    public IgniteDistributedHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
+                                     RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType,
+                                     RexNode rightFilterCondition, ImmutableBitSet rightRequiredColumns) {
+        super(cluster, traitSet, left, right, condition, variablesSet, joinType);
+        this.rightFilterCondition = rightFilterCondition;
+        this.rightRequiredColumns = rightRequiredColumns;
     }
 
     /**  */
@@ -120,11 +141,16 @@ public class IgniteDistributedHashJoin extends IgniteHashJoin {
         return res;
     }
 
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw).item("rightFilter", getRightFilterCondition()).item("rightRequiredColumns", getRightRequiredColumns());
+    }
+
     /** {@inheritDoc} */
     @Override
     public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
                      boolean semiJoinDone) {
-        return new IgniteDistributedHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType);
+        return new IgniteDistributedHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType, getRightFilterCondition(), getRightRequiredColumns());
     }
 
     /** {@inheritDoc} */
@@ -137,6 +163,120 @@ public class IgniteDistributedHashJoin extends IgniteHashJoin {
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteDistributedHashJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
-            getVariablesSet(), getJoinType());
+            getVariablesSet(), getJoinType(), getRightFilterCondition(), getRightRequiredColumns());
     }
+
+    /**
+     * Clones the Rel with a condition and/or column requirement on the right input. Used when a TableScan predicates
+     * are pushing into the HashJoin so a complete hashtable can be cached.
+     */
+    public IgniteDistributedHashJoin clone(RexNode rightFilterCondition, ImmutableBitSet rightRequiredColumns, IgniteRel rightInput) {
+        return new IgniteDistributedHashJoin(getCluster(), getTraitSet(), getLeft(), rightInput, getCondition(), getVariablesSet(), getJoinType(), rightFilterCondition, rightRequiredColumns);
+    }
+
+    @Override
+    public boolean cacheMatches(IgniteRel other) {
+        if (!(other instanceof IgniteDistributedHashJoin)) return false;
+        IgniteDistributedHashJoin otherJoin = (IgniteDistributedHashJoin) other;
+
+        if (!otherJoin.getCondition().isA(SqlKind.EQUALS)) return false;
+        if (!otherJoin.getRight().getRowType().equals(getRight().getRowType())) return false;
+
+        // We build the HashTable on the right column so that is the part we care about matching
+        Set<Integer> rightConditions = new HashJoinConditionExtractor(getLeft().getRowType().getFieldCount()).go(getCondition());
+        Set<Integer> otherRightConditions = new HashJoinConditionExtractor(otherJoin.getLeft().getRowType().getFieldCount()).go(otherJoin.getCondition());
+
+        if (rightConditions.isEmpty() || otherRightConditions.isEmpty()) return false;
+
+        return rightConditions.equals(otherRightConditions);
+    }
+
+    /**
+     * Creates a HashJoin
+     */
+    public RexNode getRightFilterCondition() {
+        return rightFilterCondition;
+    }
+
+    public ImmutableBitSet getRightRequiredColumns() {
+        return rightRequiredColumns;
+    }
+
+    private static class HashJoinConditionExtractor implements RexVisitor<Set<Integer>> {
+
+        private final int rightRowThreshold;
+
+        HashJoinConditionExtractor(int rightRowThreshold) {
+            this.rightRowThreshold = rightRowThreshold;
+        }
+
+        public Set<Integer> go(RexNode r) {
+            return r.accept(this);
+        }
+
+        @Override
+        public Set<Integer> visitInputRef(RexInputRef rexInputRef) {
+            return rexInputRef.getIndex() >= rightRowThreshold ? new HashSet<>(Collections.singletonList(rexInputRef.getIndex())) : null;
+        }
+
+        @Override
+        public Set<Integer> visitLocalRef(RexLocalRef rexLocalRef) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitLiteral(RexLiteral rexLiteral) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitCall(RexCall rexCall) {
+            Set<Integer> result = new HashSet<>();
+            for (RexNode r : rexCall.getOperands()) {
+                Optional.ofNullable(r.accept(this)).ifPresent(result::addAll);
+            }
+            return result;
+        }
+
+        @Override
+        public Set<Integer> visitOver(RexOver rexOver) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitCorrelVariable(RexCorrelVariable rexCorrelVariable) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitDynamicParam(RexDynamicParam rexDynamicParam) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitRangeRef(RexRangeRef rexRangeRef) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitFieldAccess(RexFieldAccess rexFieldAccess) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitSubQuery(RexSubQuery rexSubQuery) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitTableInputRef(RexTableInputRef rexTableInputRef) {
+            return null;
+        }
+
+        @Override
+        public Set<Integer> visitPatternFieldRef(RexPatternFieldRef rexPatternFieldRef) {
+            return null;
+        }
+    }
+
 }

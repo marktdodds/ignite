@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.calcite.rel.logical;
 
 import java.util.List;
+
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
@@ -29,7 +30,7 @@ import org.apache.ignite.internal.processors.query.calcite.schema.IgniteIndex;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteTable;
 import org.jetbrains.annotations.Nullable;
 
-/** */
+/**  */
 public class IgniteLogicalIndexScan extends AbstractIndexScan {
     /** Creates a IgniteLogicalIndexScan. */
     public static IgniteLogicalIndexScan create(
@@ -59,12 +60,13 @@ public class IgniteLogicalIndexScan extends AbstractIndexScan {
 
     /**
      * Creates a IndexScan.
-     * @param cluster Cluster that this relational expression belongs to
-     * @param traits Traits of this relational expression
-     * @param tbl Table definition.
-     * @param idxName Index name.
-     * @param proj Projects.
-     * @param cond Filters.
+     *
+     * @param cluster      Cluster that this relational expression belongs to
+     * @param traits       Traits of this relational expression
+     * @param tbl          Table definition.
+     * @param idxName      Index name.
+     * @param proj         Projects.
+     * @param cond         Filters.
      * @param searchBounds Index search bounds.
      * @param requiredCols Participating columns.
      */
@@ -79,5 +81,10 @@ public class IgniteLogicalIndexScan extends AbstractIndexScan {
         @Nullable ImmutableBitSet requiredCols
     ) {
         super(cluster, traits, tbl, idxName, proj, cond, searchBounds, requiredCols);
+    }
+
+    @Override
+    public IgniteLogicalIndexScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
+        return new IgniteLogicalIndexScan(getCluster(), traitSet, table, idxName, projects, condition, searchBounds, requiredColumns);
     }
 }

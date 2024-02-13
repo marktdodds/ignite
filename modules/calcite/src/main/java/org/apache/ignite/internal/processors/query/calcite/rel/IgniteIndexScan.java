@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.calcite.rel;
 
 import java.util.List;
+
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
@@ -35,7 +36,7 @@ import static org.apache.ignite.internal.processors.query.calcite.trait.TraitUti
  * Relational operator that returns the contents of a table.
  */
 public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgniteRel {
-    /** */
+    /**  */
     private final long sourceId;
 
     /** Index collation. Required only for rewriting index scan to table scan + sort in case of index rebuild. */
@@ -53,21 +54,22 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
 
         Object srcIdObj = input.get("sourceId");
         if (srcIdObj != null)
-            sourceId = ((Number)srcIdObj).longValue();
+            sourceId = ((Number) srcIdObj).longValue();
         else
             sourceId = -1;
     }
 
     /**
      * Creates a IndexScan.
-     * @param cluster Cluster that this relational expression belongs to
-     * @param traits Traits of this relational expression
-     * @param tbl Table definition.
-     * @param idxName Index name.
-     * @param proj Projects.
-     * @param cond Filters.
+     *
+     * @param cluster      Cluster that this relational expression belongs to
+     * @param traits       Traits of this relational expression
+     * @param tbl          Table definition.
+     * @param idxName      Index name.
+     * @param proj         Projects.
+     * @param cond         Filters.
      * @param requiredCols Participating columns.
-     * @param collation Index collation.
+     * @param collation    Index collation.
      */
     public IgniteIndexScan(
         RelOptCluster cluster,
@@ -85,14 +87,15 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
 
     /**
      * Creates a IndexScan.
-     * @param cluster Cluster that this relational expression belongs to
-     * @param traits Traits of this relational expression
-     * @param tbl Table definition.
-     * @param idxName Index name.
-     * @param proj Projects.
-     * @param cond Filters.
+     *
+     * @param cluster      Cluster that this relational expression belongs to
+     * @param traits       Traits of this relational expression
+     * @param tbl          Table definition.
+     * @param idxName      Index name.
+     * @param proj         Projects.
+     * @param cond         Filters.
      * @param requiredCols Participating colunms.
-     * @param collation Index collation.
+     * @param collation    Index collation.
      */
     private IgniteIndexScan(
         long sourceId,
@@ -113,36 +116,47 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
     }
 
     /** {@inheritDoc} */
-    @Override public long sourceId() {
+    @Override
+    public long sourceId() {
         return sourceId;
     }
 
     /** {@inheritDoc} */
-    @Override protected RelWriter explainTerms0(RelWriter pw) {
+    @Override
+    protected RelWriter explainTerms0(RelWriter pw) {
         return super.explainTerms0(pw)
             .itemIf("sourceId", sourceId, sourceId != -1)
             .item("collation", collation());
     }
 
+    @Override
+    public IgniteIndexScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
+        return new IgniteIndexScan(getCluster(), traitSet, table, idxName, projects, condition, searchBounds, requiredColumns, collation);
+    }
+
     /** {@inheritDoc} */
-    @Override public <T> T accept(IgniteRelVisitor<T> visitor) {
+    @Override
+    public <T> T accept(IgniteRelVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel clone(long sourceId) {
+    @Override
+    public IgniteRel clone(long sourceId) {
         return new IgniteIndexScan(sourceId, getCluster(), getTraitSet(), getTable(),
             idxName, projects, condition, searchBounds, requiredColumns, collation);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
+    @Override
+    public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteIndexScan(sourceId, cluster, getTraitSet(), getTable(),
             idxName, projects, condition, searchBounds, requiredColumns, collation);
     }
 
     /** {@inheritDoc} */
-    @Override public RelCollation collation() {
+    @Override
+    public RelCollation collation() {
         return collation;
     }
 }

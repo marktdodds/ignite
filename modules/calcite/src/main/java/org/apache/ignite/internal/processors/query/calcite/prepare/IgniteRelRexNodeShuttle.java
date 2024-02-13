@@ -36,82 +36,101 @@ import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSortedIndex
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableFunctionScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableModify;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
+import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteDistributedHashJoin;
 
-/** */
+/**  */
 public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
-    /** */
+    /**  */
     private final RexShuttle rexShuttle;
 
-    /** */
+    /**  */
     public IgniteRelRexNodeShuttle(RexShuttle rexShuttle) {
         this.rexShuttle = rexShuttle;
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteFilter rel) {
+    @Override
+    public IgniteRel visit(IgniteFilter rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteProject rel) {
+    @Override
+    public IgniteRel visit(IgniteProject rel) {
         rexShuttle.apply(rel.getProjects());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteNestedLoopJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteNestedLoopJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteDistributedNestedLoopJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteDistributedNestedLoopJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteCorrelatedNestedLoopJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteCorrelatedNestedLoopJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteHashJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteHashJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteDistributedHashJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteDistributedHashJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteDistributedMergeJoin rel) {
+    @Override
+    public IgniteRel visit(CacheableIgniteDistributedHashJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteMergeJoin rel) {
+    @Override
+    public IgniteRel visit(IgniteDistributedMergeJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteIndexScan rel) {
+    @Override
+    public IgniteRel visit(IgniteMergeJoin rel) {
+        rexShuttle.apply(rel.getCondition());
+
+        return super.visit(rel);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public IgniteRel visit(IgniteIndexScan rel) {
         rexShuttle.apply(rel.projects());
         rexShuttle.apply(rel.condition());
 
@@ -119,7 +138,8 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableScan rel) {
+    @Override
+    public IgniteRel visit(IgniteTableScan rel) {
         rexShuttle.apply(rel.projects());
         rexShuttle.apply(rel.condition());
 
@@ -127,14 +147,16 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteSortedIndexSpool rel) {
+    @Override
+    public IgniteRel visit(IgniteSortedIndexSpool rel) {
         rexShuttle.apply(rel.condition());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteHashIndexSpool rel) {
+    @Override
+    public IgniteRel visit(IgniteHashIndexSpool rel) {
         rexShuttle.apply(rel.condition());
         rexShuttle.apply(rel.searchRow());
 
@@ -142,14 +164,16 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableModify rel) {
+    @Override
+    public IgniteRel visit(IgniteTableModify rel) {
         rexShuttle.apply(rel.getSourceExpressionList());
 
         return super.visit(rel);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteLimit rel) {
+    @Override
+    public IgniteRel visit(IgniteLimit rel) {
         rexShuttle.apply(rel.fetch());
         rexShuttle.apply(rel.offset());
 
@@ -157,7 +181,8 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteSort rel) {
+    @Override
+    public IgniteRel visit(IgniteSort rel) {
         rexShuttle.apply(rel.offset);
         rexShuttle.apply(rel.fetch);
         rexShuttle.apply(rel.getSortExps());
@@ -166,7 +191,8 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel visit(IgniteTableFunctionScan rel) {
+    @Override
+    public IgniteRel visit(IgniteTableFunctionScan rel) {
         rexShuttle.apply(rel.getCall());
 
         return super.visit(rel);

@@ -63,7 +63,7 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
     /** Participating columns. */
     protected final ImmutableBitSet requiredColumns;
 
-    /** */
+    /**  */
     protected ProjectableFilterableTableScan(
         RelOptCluster cluster,
         RelTraitSet traitSet,
@@ -80,7 +80,7 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
         requiredColumns = reqColumns;
     }
 
-    /** */
+    /**  */
     protected ProjectableFilterableTableScan(RelInput input) {
         super(input);
         condition = input.getExpression("filters");
@@ -104,18 +104,20 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
     }
 
     /** {@inheritDoc} */
-    @Override public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    @Override
+    public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
         assert inputs.isEmpty();
 
         return this;
     }
 
     /** {@inheritDoc} */
-    @Override public RelWriter explainTerms(RelWriter pw) {
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
         return explainTerms0(super.explainTerms(pw));
     }
 
-    /** */
+    /**  */
     protected RelWriter explainTerms0(RelWriter pw) {
         if (condition != null) {
             pw.item("filters", pw.nest() ? condition :
@@ -128,7 +130,8 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
     }
 
     /** {@inheritDoc} */
-    @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         double rows = table.getRowCount();
         double cost = rows * IgniteCost.ROW_PASS_THROUGH_COST;
 
@@ -139,19 +142,21 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
     }
 
     /** {@inheritDoc} */
-    @Override public double estimateRowCount(RelMetadataQuery mq) {
+    @Override
+    public double estimateRowCount(RelMetadataQuery mq) {
         return table.getRowCount() * mq.getSelectivity(this, null);
     }
 
     /** {@inheritDoc} */
-    @Override public RelDataType deriveRowType() {
+    @Override
+    public RelDataType deriveRowType() {
         if (projects != null)
             return RexUtil.createStructType(Commons.typeFactory(getCluster()), projects);
         else
             return table.unwrap(IgniteTable.class).getRowType(Commons.typeFactory(getCluster()), requiredColumns);
     }
 
-    /** */
+    /**  */
     public RexNode pushUpPredicate() {
         if (condition == null || projects == null)
             return replaceLocalRefs(condition);
@@ -163,7 +168,8 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
             tbl.getRowType(typeFactory, requiredColumns), true);
 
         RexShuttle shuttle = new RexShuttle() {
-            @Override public RexNode visitLocalRef(RexLocalRef ref) {
+            @Override
+            public RexNode visitLocalRef(RexLocalRef ref) {
                 int targetRef = mapping.getSourceOpt(ref.getIndex());
                 if (targetRef == -1)
                     throw new ControlFlowException();
@@ -175,8 +181,7 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
         for (RexNode conjunction : RelOptUtil.conjunctions(condition)) {
             try {
                 conjunctions.add(shuttle.apply(conjunction));
-            }
-            catch (ControlFlowException ignore) {
+            } catch (ControlFlowException ignore) {
                 // No-op
             }
         }
@@ -195,4 +200,8 @@ public abstract class ProjectableFilterableTableScan extends TableScan {
 
         return new RelColumnOrigin(getTable(), originColIdx, false);
     }
+
+
+    public abstract ProjectableFilterableTableScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns);
+
 }

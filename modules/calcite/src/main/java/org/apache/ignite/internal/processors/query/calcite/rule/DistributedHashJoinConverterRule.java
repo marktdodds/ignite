@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.query.calcite.rule;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.PhysicalNode;
 import org.apache.calcite.rel.RelNode;
@@ -28,12 +29,13 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.trait.RewindabilityTrait;
 
 /**
  * Ignite Join converter.
  */
 public class DistributedHashJoinConverterRule extends AbstractIgniteConverterRule<LogicalJoin> {
-    /** */
+    /**  */
     public static final RelOptRule INSTANCE = new DistributedHashJoinConverterRule();
 
     /**
@@ -43,15 +45,20 @@ public class DistributedHashJoinConverterRule extends AbstractIgniteConverterRul
         super(LogicalJoin.class, "DistributedHashJoinConverter");
     }
 
-
+    @Override
+    public boolean matches(RelOptRuleCall call) {
+        LogicalJoin oper = call.rel(0);
+        return oper.getCondition().isA(SqlKind.EQUALS);
+    }
 
     /** {@inheritDoc} */
-    @Override protected PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalJoin rel) {
-
-        if (!rel.getCondition().isA(SqlKind.EQUALS)) return null;
+    @Override
+    protected PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalJoin rel) {
+        assert rel.getCondition().isA(SqlKind.EQUALS);
 
         RelOptCluster cluster = rel.getCluster();
-        RelTraitSet outTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
+        RelTraitSet outTraits = cluster.traitSetOf(IgniteConvention.INSTANCE)
+            .replace(RewindabilityTrait.ONE_WAY);
         RelTraitSet leftInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
         RelTraitSet rightInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
         RelNode left = convert(rel.getLeft(), leftInTraits);

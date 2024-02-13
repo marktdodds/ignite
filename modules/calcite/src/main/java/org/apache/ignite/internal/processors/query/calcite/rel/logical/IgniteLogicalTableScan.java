@@ -28,7 +28,7 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.query.calcite.rel.ProjectableFilterableTableScan;
 import org.jetbrains.annotations.Nullable;
 
-/** */
+/**  */
 public class IgniteLogicalTableScan extends ProjectableFilterableTableScan {
     /** Creates a IgniteLogicalTableScan. */
     public static IgniteLogicalTableScan create(
@@ -45,12 +45,13 @@ public class IgniteLogicalTableScan extends ProjectableFilterableTableScan {
 
     /**
      * Creates a IgniteLogicalTableScan.
-     * @param cluster Cluster that this relational expression belongs to.
-     * @param traits Traits of this relational expression.
-     * @param tbl Table definition.
-     * @param hints Hints.
-     * @param proj Projects.
-     * @param cond Filters.
+     *
+     * @param cluster         Cluster that this relational expression belongs to.
+     * @param traits          Traits of this relational expression.
+     * @param tbl             Table definition.
+     * @param hints           Hints.
+     * @param proj            Projects.
+     * @param cond            Filters.
      * @param requiredColunms Participating colunms.
      */
     private IgniteLogicalTableScan(
@@ -66,8 +67,15 @@ public class IgniteLogicalTableScan extends ProjectableFilterableTableScan {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteLogicalTableScan withHints(List<RelHint> hints) {
+    @Override
+    public IgniteLogicalTableScan withHints(List<RelHint> hints) {
         return new IgniteLogicalTableScan(getCluster(), getTraitSet(), getTable(), hints, projects(), condition(),
             requiredColumns());
     }
+
+    @Override
+    public IgniteLogicalTableScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
+        return new IgniteLogicalTableScan(getCluster(), traitSet, table, hints, projects, condition, requiredColumns);
+    }
+
 }

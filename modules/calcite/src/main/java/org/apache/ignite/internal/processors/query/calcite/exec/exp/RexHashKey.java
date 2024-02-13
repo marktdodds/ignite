@@ -1,6 +1,7 @@
 package org.apache.ignite.internal.processors.query.calcite.exec.exp;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.ignite.internal.processors.query.calcite.exec.tracker.ObjectSizeCalculator;
 
 import java.util.Arrays;
 
@@ -20,6 +21,10 @@ public class RexHashKey {
 
     public RexHashKey(ImmutableList<Object> key) {
         this.key = key;
+    }
+
+    public long getByteSize(ObjectSizeCalculator<Object[]> calculator) {
+        return calculator.sizeOf(key.toArray());
     }
 
     @Override

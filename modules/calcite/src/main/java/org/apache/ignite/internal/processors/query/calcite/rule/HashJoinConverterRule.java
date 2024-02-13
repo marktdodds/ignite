@@ -28,12 +28,13 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.trait.RewindabilityTrait;
 
 /**
  * Ignite Join converter.
  */
 public class HashJoinConverterRule extends AbstractIgniteConverterRule<LogicalJoin> {
-    /** */
+    /**  */
     public static final RelOptRule INSTANCE = new HashJoinConverterRule();
 
     /**
@@ -44,14 +45,14 @@ public class HashJoinConverterRule extends AbstractIgniteConverterRule<LogicalJo
     }
 
 
-
     /** {@inheritDoc} */
-    @Override protected PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalJoin rel) {
+    @Override
+    protected PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalJoin rel) {
 
         if (!rel.getCondition().isA(SqlKind.EQUALS)) return null;
 
         RelOptCluster cluster = rel.getCluster();
-        RelTraitSet outTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
+        RelTraitSet outTraits = cluster.traitSetOf(IgniteConvention.INSTANCE).replace(RewindabilityTrait.ONE_WAY);
         RelTraitSet leftInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
         RelTraitSet rightInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
         RelNode left = convert(rel.getLeft(), leftInTraits);

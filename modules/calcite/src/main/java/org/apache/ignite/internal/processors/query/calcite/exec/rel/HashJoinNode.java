@@ -19,14 +19,18 @@ package org.apache.ignite.internal.processors.query.calcite.exec.rel;
 
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHashKey;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHasher;
+import org.apache.ignite.internal.processors.query.calcite.exec.tracker.ObjectSizeCalculator;
 import org.apache.ignite.internal.util.typedef.F;
-import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -37,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**  */
 public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
@@ -45,6 +50,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
     /**  */
     protected final RexNode cond;
+
 
     /**  */
     protected final RowHandler<Row> handler;
@@ -62,7 +68,28 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     protected RelDataType leftRowType;
 
     /**  */
-    protected final Map<RexHashKey, List<Row>> rightMaterialized = new HashMap<>(IN_BUFFER_SIZE);
+    protected Predicate<Row> rightPreJoinPredicate;
+
+    /**  */
+    private ImmutableBitSet rightPreJoinColumnFilter;
+
+    /**  */
+    protected RelDataType rightRowType;
+
+    /**  */
+    protected Map<RexHashKey, List<Row>> rightMaterialized = new HashMap<>(IN_BUFFER_SIZE);
+
+    /**  */
+    private final ObjectSizeCalculator<Object[]> hashMapKeySizeCalculator = new ObjectSizeCalculator<>();
+
+    /**  */
+    private final ObjectSizeCalculator<Row> hashMapEntrySizeCalculator = new ObjectSizeCalculator<>();
+
+    /** Tracks the memory allocation of the hash map */
+    private long hashMapMemoryUsed;
+
+    /** Right row factory. */
+    protected RowHandler.RowFactory<Row> rightRowFactory;
 
     /**  */
     protected final Deque<Row> leftInBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
@@ -70,21 +97,22 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
     /**  */
     protected boolean inLoop;
-
-    protected InternalDebug debug = InternalDebug.once("HJ");
-    protected InternalDebug timer = InternalDebug.once("HJTimer");
-
+    private Runnable onComplete;
 
     /**
-     * @param ctx  Execution context.
-     * @param cond Join expression.
+     * @param ctx          Execution context.
+     * @param cond         Join expression.
+     * @param rightRowType Right row type
      */
-    private HashJoinNode(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType) {
+    private HashJoinNode(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
         super(ctx, rowType);
 
         this.cond = cond;
-        handler = ctx.rowHandler();
         this.leftRowType = leftRowType;
+        this.rightRowType = rightRowType;
+
+        handler = ctx.rowHandler();
+        rightRowFactory = handler.factory(ctx.getTypeFactory(), rightRowType);
     }
 
     /** {@inheritDoc} */
@@ -101,23 +129,10 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             context().execute(this::doJoin, this::onError);
     }
 
-    /**  */
-    private void doJoin() throws Exception {
-        checkState();
-
-        join();
-    }
-
     /** {@inheritDoc} */
     @Override
     protected void rewindInternal() {
-        requested = 0;
-        waitingLeft = 0;
-        waitingRight = 0;
-
-        outboxBuf.clear();
-        rightMaterialized.clear();
-        leftInBuf.clear();
+        throw new UnsupportedOperationException();
     }
 
     /** {@inheritDoc} */
@@ -195,6 +210,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         rightMaterialized.get(hashKey).add(row);
 
         nodeMemoryTracker.onRowAdded(row);
+        hashMapMemoryUsed += hashKey.getByteSize(hashMapKeySizeCalculator) + hashMapEntrySizeCalculator.sizeOf(row);
 
         if (waitingRight == 0)
             rightSource().request(waitingRight = IN_BUFFER_SIZE);
@@ -232,7 +248,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         } else
             outboxBuf.push(r);
 
-        debug.counterInc();
     }
 
     protected void emptyOutbox() throws Exception {
@@ -257,43 +272,110 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     protected abstract void join() throws Exception;
 
     /**  */
+    private void doJoin() throws Exception {
+        checkState();
+
+        join();
+    }
+
+    /**
+     * Called when the join() has completed. Runs cleanup and an optional callback (used
+     * for result caching)
+     */
+    protected void joinCompleted() throws Exception {
+        requested = 0;
+        downstream().end();
+        if (onComplete != null) new Thread(onComplete).start();
+    }
+
+    /**  */
     @NotNull
     public static <Row> HashJoinNode<Row> create(ExecutionContext<Row> ctx, RelDataType outputRowType,
                                                  RelDataType leftRowType, RelDataType rightRowType, JoinRelType joinType,
-                                                 RexNode cond,
-                                                 RelDataType resultRowType) {
+                                                 RexNode cond) {
         switch (joinType) {
             case INNER:
-                return new InnerJoin<>(ctx, outputRowType, cond, leftRowType);
+                return new InnerJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
 
-            case LEFT: {
-                RowHandler.RowFactory<Row> rightRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), rightRowType);
+            case LEFT:
+                return new LeftJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
 
-                return new LeftJoin<>(ctx, outputRowType, cond, rightRowFactory, leftRowType);
-            }
+            case RIGHT:
+                return new RightJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
 
-            case RIGHT: {
-                RowHandler.RowFactory<Row> leftRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), leftRowType);
-
-                return new RightJoin<>(ctx, outputRowType, cond, leftRowFactory, leftRowType);
-            }
-
-            case FULL: {
-                RowHandler.RowFactory<Row> leftRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), leftRowType);
-                RowHandler.RowFactory<Row> rightRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), rightRowType);
-
-                return new FullOuterJoin<>(ctx, outputRowType, cond, leftRowFactory, rightRowFactory, leftRowType);
-            }
+            case FULL:
+                return new FullOuterJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
 
             case SEMI:
-                return new SemiJoin<>(ctx, outputRowType, cond, leftRowType);
+                return new SemiJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
 
             case ANTI:
-                return new AntiJoin<>(ctx, outputRowType, cond, leftRowType);
+                return new AntiJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
 
             default:
                 throw new IllegalStateException("Join type \"" + joinType + "\" is not supported yet");
         }
+    }
+
+    /**
+     * Sets a column filter on the right input to be applied during the join
+     * Pushed up from a table scan so the hashtable built here is cacheable
+     */
+    public void setRightColumnFilter(ImmutableBitSet rightRequiredColumns) {
+        rightPreJoinColumnFilter = rightRequiredColumns;
+
+        RelDataTypeFactory.Builder b = new RelDataTypeFactory.Builder(context().getTypeFactory());
+        List<RelDataTypeField> fieldList = rightRowType.getFieldList();
+        for (int i = rightRequiredColumns.nextSetBit(0); i != -1; i = rightRequiredColumns.nextSetBit(i + 1))
+            b.add(fieldList.get(i));
+
+        rightRowType = b.build();
+        rightRowFactory = handler.factory(context().getTypeFactory(), rightRowType);
+
+    }
+
+    /**
+     * Sets a predicate to be applied on the right input during the join
+     */
+    public void setRightPreJoinPredicate(Predicate<Row> pred) {
+        rightPreJoinPredicate = pred;
+    }
+
+    /**
+     * Injects a previously used and cached HashJoinNode into this execution node.
+     */
+    public void injectFromCache(HashJoinNode<Row> cached) {
+        rightMaterialized = cached.rightMaterialized;
+    }
+
+    /**
+     * Applies a predicate and/or column filter to an input row
+     */
+    protected @Nullable Row applyRightPredicateAndColumnFilter(Row row) {
+        Row realRow = row;
+        if (rightPreJoinColumnFilter != null) {
+            realRow = rightRowFactory.create();
+            int colIdx = 0;
+            for (int i = rightPreJoinColumnFilter.nextSetBit(0); i != -1; i = rightPreJoinColumnFilter.nextSetBit(i + 1))
+                handler.set(colIdx++, realRow, handler.get(i, row));
+        }
+        if (rightPreJoinPredicate != null && !rightPreJoinPredicate.test(realRow)) return null;
+        return realRow;
+    }
+
+    /**
+     * Sets a callback for when the join is completed
+     */
+    public void setOnComplete(Runnable runner) {
+        assert onComplete == null;
+        onComplete = runner;
+    }
+
+    /**
+     * Returns the est. memory size of this node if it were cached.
+     */
+    public long getCacheMemorySize() {
+        return hashMapMemoryUsed;
     }
 
     /**  */
@@ -303,14 +385,13 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
          * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public InnerJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType) {
-            super(ctx, rowType, cond, leftRowType);
+        public InnerJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+            super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
         /**  */
         @Override
         protected void join() throws Exception {
-            timer.counterSub(System.currentTimeMillis());
             if (waitingRight == NOT_WAITING) {
                 inLoop = true;
                 try {
@@ -328,8 +409,9 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                         if (bucket == null) continue;
                         for (Row right : bucket) {
-                            Row out = handler.concat(left, right);
-                            pushDownstream(out);
+                            Row filtered = applyRightPredicateAndColumnFilter(right);
+                            if (filtered == null) continue;
+                            pushDownstream(handler.concat(left, filtered));
                         }
 
                     }
@@ -344,35 +426,27 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             if (waitingLeft == 0 && leftInBuf.isEmpty())
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
-            timer.counterAdd(System.currentTimeMillis());
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
-                requested = 0;
-                downstream().end();
-                debug.logCounter("HJ PR", System.out);
-                timer.logCounter("HJ PT", System.out);
+                joinCompleted();
             }
         }
     }
 
     /**  */
     private static class LeftJoin<Row> extends HashJoinNode<Row> {
-        /** Right row factory. */
-        private final RowHandler.RowFactory<Row> rightRowFactory;
 
         /**
-         * @param ctx  Execution context.
-         * @param cond Join expression.
+         * @param ctx          Execution context.
+         * @param cond         Join expression.
+         * @param rightRowType Right row type definition
          */
         public LeftJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
             RexNode cond,
-            RowHandler.RowFactory<Row> rightRowFactory,
-            RelDataType resultRowType
-        ) {
-            super(ctx, rowType, cond, resultRowType);
-
-            this.rightRowFactory = rightRowFactory;
+            RelDataType leftRowType,
+            RelDataType rightRowType) {
+            super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
         /**  */
@@ -418,8 +492,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinCompleted();
             }
         }
     }
@@ -440,12 +513,11 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             ExecutionContext<Row> ctx,
             RelDataType rowType,
             RexNode cond,
-            RowHandler.RowFactory<Row> leftRowFactory,
-            RelDataType resultRowType
-        ) {
-            super(ctx, rowType, cond, resultRowType);
+            RelDataType leftRowType,
+            RelDataType rightRowType) {
+            super(ctx, rowType, cond, leftRowType, rightRowType);
 
-            this.leftRowFactory = leftRowFactory;
+            leftRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), leftRowType);
         }
 
         /** {@inheritDoc} */
@@ -518,8 +590,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty() && rightNotMatched.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinCompleted();
             }
         }
     }
@@ -528,10 +599,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     private static class FullOuterJoin<Row> extends HashJoinNode<Row> {
         /** Left row factory. */
         private final RowHandler.RowFactory<Row> leftRowFactory;
-
-        /** Right row factory. */
-        private final RowHandler.RowFactory<Row> rightRowFactory;
-
         /**  */
         private Set<RexHashKey> rightNotMatched;
 
@@ -544,14 +611,11 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
             ExecutionContext<Row> ctx,
             RelDataType rowType,
             RexNode cond,
-            RowHandler.RowFactory<Row> leftRowFactory,
-            RowHandler.RowFactory<Row> rightRowFactory,
-            RelDataType resultRowType
-        ) {
-            super(ctx, rowType, cond, resultRowType);
+            RelDataType leftRowType,
+            RelDataType rightRowType) {
+            super(ctx, rowType, cond, leftRowType, rightRowType);
 
-            this.leftRowFactory = leftRowFactory;
-            this.rightRowFactory = rightRowFactory;
+            leftRowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), leftRowType);
         }
 
         /** {@inheritDoc} */
@@ -630,8 +694,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty() && rightNotMatched.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinCompleted();
             }
         }
     }
@@ -643,8 +706,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
          * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public SemiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType resultRowType) {
-            super(ctx, rowType, cond, resultRowType);
+        public SemiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+            super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
         /** {@inheritDoc} */
@@ -681,8 +744,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
          * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public AntiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType resultRowType) {
-            super(ctx, rowType, cond, resultRowType);
+        public AntiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+            super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
 
@@ -711,8 +774,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && leftInBuf.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinCompleted();
             }
         }
     }

@@ -18,6 +18,8 @@
 package org.apache.ignite.internal.processors.query.calcite.rel;
 
 import java.util.List;
+import java.util.Objects;
+
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -34,7 +36,7 @@ import static org.apache.ignite.internal.processors.query.calcite.trait.TraitUti
  * Relational operator that returns the contents of a table.
  */
 public class IgniteTableScan extends ProjectableFilterableTableScan implements SourceAwareIgniteRel {
-    /** */
+    /**  */
     private final long sourceId;
 
     /**
@@ -47,16 +49,17 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
 
         Object srcIdObj = input.get("sourceId");
         if (srcIdObj != null)
-            sourceId = ((Number)srcIdObj).longValue();
+            sourceId = ((Number) srcIdObj).longValue();
         else
             sourceId = -1;
     }
 
     /**
      * Creates a TableScan.
+     *
      * @param cluster Cluster that this relational expression belongs to
-     * @param traits Traits of this relational expression
-     * @param tbl Table definition.
+     * @param traits  Traits of this relational expression
+     * @param tbl     Table definition.
      */
     public IgniteTableScan(
         RelOptCluster cluster,
@@ -68,11 +71,12 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
 
     /**
      * Creates a TableScan.
-     * @param cluster Cluster that this relational expression belongs to
-     * @param traits Traits of this relational expression
-     * @param tbl Table definition.
-     * @param proj Projects.
-     * @param cond Filters.
+     *
+     * @param cluster         Cluster that this relational expression belongs to
+     * @param traits          Traits of this relational expression
+     * @param tbl             Table definition.
+     * @param proj            Projects.
+     * @param cond            Filters.
      * @param requiredColunms Participating colunms.
      */
     public IgniteTableScan(
@@ -88,11 +92,12 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
 
     /**
      * Creates a TableScan.
-     * @param cluster Cluster that this relational expression belongs to
-     * @param traits Traits of this relational expression
-     * @param tbl Table definition.
-     * @param proj Projects.
-     * @param cond Filters.
+     *
+     * @param cluster         Cluster that this relational expression belongs to
+     * @param traits          Traits of this relational expression
+     * @param tbl             Table definition.
+     * @param proj            Projects.
+     * @param cond            Filters.
      * @param requiredColunms Participating colunms.
      */
     private IgniteTableScan(
@@ -108,29 +113,51 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
         this.sourceId = sourceId;
     }
 
-    /** */
-    @Override public long sourceId() {
+    /**  */
+    @Override
+    public long sourceId() {
         return sourceId;
     }
 
-    /** */
-    @Override protected RelWriter explainTerms0(RelWriter pw) {
+    /**  */
+    @Override
+    protected RelWriter explainTerms0(RelWriter pw) {
         return super.explainTerms0(pw)
             .itemIf("sourceId", sourceId, sourceId != -1);
     }
 
+    @Override
+    public IgniteTableScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
+        return new IgniteTableScan(sourceId, getCluster(), traitSet, table, projects, condition, requiredColumns);
+    }
+
     /** {@inheritDoc} */
-    @Override public <T> T accept(IgniteRelVisitor<T> visitor) {
+    @Override
+    public <T> T accept(IgniteRelVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel clone(long sourceId) {
+    @Override
+    public IgniteRel clone(long sourceId) {
         return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
+    @Override
+    public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteTableScan(sourceId, cluster, getTraitSet(), getTable(), projects, condition, requiredColumns);
+    }
+
+    @Override
+    public boolean cacheMatches(IgniteRel other) {
+        if (!(other instanceof IgniteTableScan)) return false;
+        IgniteTableScan otherScan = (IgniteTableScan) other;
+
+        return Objects.equals(projects(), otherScan.projects())
+            && Objects.equals(requiredColumns(), otherScan.requiredColumns())
+            && Objects.equals(condition(), otherScan.condition())
+            && Objects.deepEquals(getTable().getQualifiedName(), other.getTable().getQualifiedName())
+            ;
     }
 }
