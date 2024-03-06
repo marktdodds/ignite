@@ -32,7 +32,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
-import org.apache.ignite.util.InternalDebug;
 
 import java.util.List;
 import java.util.Set;
@@ -91,16 +90,6 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        return computeSelfCost(planner, mq, leftCount, rightCount);
-    }
-
-    /**
-     * Computes the self cost for a hash join given a left and right count. Used here and in { #org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin }
-     * which modifies the leftCount to account for the distribution of join nodes
-     */
-    protected RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq, double leftCount, double rightCount) {
-        IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
-
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
         RelOptCost cost = costFactory.makeCost(leftCount + rightCount,
@@ -108,8 +97,6 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
             0,
             rightSize,
             0);
-
-        InternalDebug.log("Left: ", Double.toString(leftCount), " | Right: ", Double.toString(rightCount), " | Cost: ", cost.toString());
 
         return cost;
     }

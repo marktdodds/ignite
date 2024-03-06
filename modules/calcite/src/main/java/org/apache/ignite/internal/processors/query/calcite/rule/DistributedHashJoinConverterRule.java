@@ -29,7 +29,6 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
-import org.apache.ignite.internal.processors.query.calcite.trait.RewindabilityTrait;
 
 /**
  * Ignite Join converter.
@@ -57,10 +56,10 @@ public class DistributedHashJoinConverterRule extends AbstractIgniteConverterRul
         assert rel.getCondition().isA(SqlKind.EQUALS);
 
         RelOptCluster cluster = rel.getCluster();
-        RelTraitSet outTraits = cluster.traitSetOf(IgniteConvention.INSTANCE)
-            .replace(RewindabilityTrait.ONE_WAY);
         RelTraitSet leftInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
         RelTraitSet rightInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
+        RelTraitSet outTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
+
         RelNode left = convert(rel.getLeft(), leftInTraits);
         RelNode right = convert(rel.getRight(), rightInTraits);
 

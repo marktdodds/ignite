@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelRule;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.logical.LogicalAggregate;
@@ -46,14 +47,10 @@ import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedHashJoinConverterRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.DistributedMergeJoinConverterRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.EmptyRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.HashAggregateConverterRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexCountRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexMinMaxRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
@@ -72,6 +69,10 @@ import org.apache.ignite.internal.processors.query.calcite.rule.logical.ExposeIn
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.FilterScanMergeRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.LogicalOrToUnionRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.logical.ProjectScanMergeRule;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.apache.ignite.internal.processors.query.calcite.prepare.IgnitePrograms.cbo;
 import static org.apache.ignite.internal.processors.query.calcite.prepare.IgnitePrograms.hep;
@@ -169,7 +170,6 @@ public enum PlannerPhase {
 
                     JoinPushExpressionsRule.Config.DEFAULT
                         .withOperandFor(LogicalJoin.class).toRule(),
-
                     JoinConditionPushRule.JoinConditionPushRuleConfig.DEFAULT
                         .withOperandSupplier(b -> b.operand(LogicalJoin.class)
                             .anyInputs()).toRule(),
@@ -242,19 +242,6 @@ public enum PlannerPhase {
 
                     LogicalOrToUnionRule.INSTANCE,
 
-                    // TODO add MD_USE_ENHANCEMENTS FLAG TO THIS
-                    "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_HJ")) ?
-                        DistributedHashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
-
-                    "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_MJ")) ?
-                        DistributedMergeJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
-
-                    "true".equalsIgnoreCase(System.getenv("MD_USE_HJ")) ?
-                        HashJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
-
-                    "true".equalsIgnoreCase(System.getenv("MD_USE_DIST_NLJ")) ?
-                        DistributedNestedLoopJoinConverterRule.INSTANCE : EmptyRule.INSTANCE,
-
                     // TODO: https://issues.apache.org/jira/browse/IGNITE-16334 join rules ordering is significant here.
                     MergeJoinConverterRule.INSTANCE,
                     CorrelatedNestedLoopJoinRule.INSTANCE,
@@ -284,6 +271,195 @@ public enum PlannerPhase {
                     TableFunctionScanConverterRule.INSTANCE
                 )
             );
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public Program getProgram(PlanningContext ctx) {
+            return cbo(getRules(ctx));
+        }
+    },
+
+    /**
+     * =====================================
+     * =====================================
+     *            New stuff below
+     * =====================================
+     * =====================================
+     */
+    LOGICAL_OPTIMIZATIONS("Main logical optimization phase") {
+        /** {@inheritDoc} */
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
+            return ctx.rules(
+                RuleSets.ofList(
+                    FilterMergeRule.Config.DEFAULT
+                        .withOperandFor(LogicalFilter.class).toRule(),
+
+                    JoinPushThroughJoinRule.Config.LEFT
+                        .withOperandFor(LogicalJoin.class).toRule(),
+
+                    //                JoinPushThroughJoinRule.Config.RIGHT
+                    //                    .withOperandFor(LogicalJoin.class).toRule(),
+
+                    JoinPushExpressionsRule.Config.DEFAULT
+                        .withOperandFor(LogicalJoin.class).toRule(),
+
+                    JoinConditionPushRule.JoinConditionPushRuleConfig.DEFAULT
+                        .withOperandSupplier(b -> b.operand(LogicalJoin.class)
+                        .anyInputs()).toRule(),
+
+                    CoreRules.JOIN_COMMUTE,
+                    CoreRules.JOIN_COMMUTE_OUTER,
+
+                    FilterIntoJoinRule.FilterIntoJoinRuleConfig.DEFAULT
+                        .withOperandSupplier(b0 ->
+                            b0.operand(LogicalFilter.class).oneInput(b1 ->
+                                b1.operand(LogicalJoin.class).anyInputs())).toRule(),
+
+                    FilterProjectTransposeRule.Config.DEFAULT
+                        .withOperandFor(LogicalFilter.class, f -> true, LogicalProject.class, p -> true).toRule(),
+
+                    ProjectFilterTransposeRule.Config.DEFAULT
+                        .withOperandFor(LogicalProject.class, LogicalFilter.class).toRule(),
+
+                    ProjectMergeRule.Config.DEFAULT
+                        .withOperandFor(LogicalProject.class).toRule(),
+
+                    ProjectRemoveRule.Config.DEFAULT
+                        .withOperandSupplier(b ->
+                            b.operand(LogicalProject.class)
+                                .predicate(ProjectRemoveRule::isTrivial)
+                                .anyInputs()).toRule(),
+
+                    AggregateMergeRule.Config.DEFAULT
+                        .withOperandSupplier(b0 ->
+                            b0.operand(LogicalAggregate.class)
+                                .oneInput(b1 ->
+                                    b1.operand(LogicalAggregate.class)
+                                        .predicate(Aggregate::isSimple)
+                                        .anyInputs())).toRule(),
+
+                    // Rule is applicable to aggregates without ordering, otherwise application of this rule
+                    // leads to invalid projections (i.e. LISTAGG).
+                    AggregateExpandDistinctAggregatesRule.Config.JOIN
+                        .withOperandSupplier(op -> op.operand(LogicalAggregate.class)
+                            .predicate(agg -> agg.getAggCallList().stream().noneMatch(call ->
+                                call.getAggregation().requiresGroupOrder() != Optionality.FORBIDDEN))
+                            .anyInputs())
+                        .toRule(),
+
+                    SortRemoveRule.Config.DEFAULT
+                        .withOperandSupplier(b ->
+                            b.operand(LogicalSort.class)
+                                .anyInputs()).toRule(),
+
+                    CoreRules.UNION_MERGE,
+                    CoreRules.MINUS_MERGE,
+                    CoreRules.INTERSECT_MERGE,
+                    CoreRules.UNION_REMOVE,
+                    CoreRules.AGGREGATE_REMOVE,
+
+                    // Useful of this rule is not clear now.
+                    // CoreRules.AGGREGATE_REDUCE_FUNCTIONS,
+
+                    ((RelRule<?>) PruneEmptyRules.SORT_FETCH_ZERO_INSTANCE).config
+                        .withOperandSupplier(b ->
+                            b.operand(LogicalSort.class).anyInputs())
+                        .toRule()
+                )
+            );
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public Program getProgram(PlanningContext ctx) {
+            return cbo(getRules(ctx));
+        }
+    },
+
+    JOIN_OPTIMIZATION("Join optimization phase") {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
+            return ctx.rules(RuleSets.ofList(
+
+                JoinPushExpressionsRule.Config.DEFAULT
+                    .withOperandFor(LogicalJoin.class).toRule(),
+
+                JoinConditionPushRule.JoinConditionPushRuleConfig.DEFAULT
+                    .withOperandSupplier(b -> b.operand(LogicalJoin.class)
+                        .anyInputs()).toRule(),
+
+                JoinPushThroughJoinRule.Config.LEFT
+                    .withOperandFor(LogicalJoin.class).toRule(),
+
+//                JoinPushThroughJoinRule.Config.RIGHT
+//                    .withOperandFor(LogicalJoin.class).toRule(),
+
+                CoreRules.JOIN_COMMUTE,
+                CoreRules.JOIN_COMMUTE_OUTER
+            ));
+        }
+
+        @Override
+        public Program getProgram(PlanningContext ctx) {
+            return cbo(getRules(ctx));
+        }
+    },
+
+    /**  */
+    PHYSICAL_OPTIMIZATION("Physical optimizations and conversions phase") {
+        /** {@inheritDoc} */
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
+            List<RelOptRule> rules = new ArrayList<>(Arrays.asList(
+
+                ExposeIndexRule.INSTANCE,
+                ProjectScanMergeRule.TABLE_SCAN,
+                ProjectScanMergeRule.INDEX_SCAN,
+                FilterScanMergeRule.TABLE_SCAN,
+                FilterScanMergeRule.INDEX_SCAN,
+                FilterSpoolMergeToSortedIndexSpoolRule.INSTANCE,
+                FilterSpoolMergeToHashIndexSpoolRule.INSTANCE,
+
+                LogicalOrToUnionRule.INSTANCE
+            ));
+
+            if ("true".equalsIgnoreCase(System.getenv("MD_USE_DIST_HJ")))
+                rules.add(DistributedHashJoinConverterRule.INSTANCE);
+
+            rules.addAll(
+                Arrays.asList(
+
+                    // TODO: https://issues.apache.org/jira/browse/IGNITE-16334 join rules ordering is significant here.
+                    MergeJoinConverterRule.INSTANCE,
+                    CorrelatedNestedLoopJoinRule.INSTANCE,
+                    CorrelateToNestedLoopRule.INSTANCE,
+                    NestedLoopJoinConverterRule.INSTANCE,
+
+                    ValuesConverterRule.INSTANCE,
+                    LogicalScanConverterRule.INDEX_SCAN,
+                    LogicalScanConverterRule.TABLE_SCAN,
+                    IndexCountRule.INSTANCE,
+                    IndexMinMaxRule.INSTANCE,
+                    CollectRule.INSTANCE,
+                    HashAggregateConverterRule.COLOCATED,
+                    HashAggregateConverterRule.MAP_REDUCE,
+                    SortAggregateConverterRule.COLOCATED,
+                    SortAggregateConverterRule.MAP_REDUCE,
+                    SetOpConverterRule.COLOCATED_MINUS,
+                    SetOpConverterRule.MAP_REDUCE_MINUS,
+                    SetOpConverterRule.COLOCATED_INTERSECT,
+                    SetOpConverterRule.MAP_REDUCE_INTERSECT,
+                    ProjectConverterRule.INSTANCE,
+                    FilterConverterRule.INSTANCE,
+                    TableModifyConverterRule.INSTANCE,
+                    UnionConverterRule.INSTANCE,
+                    SortConverterRule.INSTANCE,
+                    TableFunctionScanConverterRule.INSTANCE
+                )
+            );
+            return ctx.rules(RuleSets.ofList(rules));
         }
 
         /** {@inheritDoc} */

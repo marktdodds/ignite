@@ -161,6 +161,8 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
     private QueryPlan prepareQuery(SqlNode sqlNode, PlanningContext ctx) {
         IgnitePlanner planner = ctx.planner();
 
+//        planner.useVisualizer("debug");
+
         // Validate
         ValidationResult validated = planner.validateAndGetTypeMetadata(sqlNode);
 
@@ -173,7 +175,7 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
         // Extract parameters meta.
         FieldsMetadata params = DynamicParamTypeExtractor.go(igniteRel);
 
-        InternalDebug.alwaysLog(igniteRel.explain());
+        InternalDebug.log(RelOptUtil.toString(igniteRel, SqlExplainLevel.ALL_ATTRIBUTES));
 
         // Split query plan to query fragments.
         List<Fragment> fragments = new Splitter().go(igniteRel);

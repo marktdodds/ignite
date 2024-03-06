@@ -40,6 +40,7 @@ import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintDefinition;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintUtils;
+import org.apache.ignite.internal.processors.query.calcite.metadata.RelMetadataQueryEx;
 import org.apache.ignite.internal.processors.query.calcite.rel.AbstractIndexScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
@@ -53,6 +54,7 @@ import org.apache.ignite.internal.processors.query.calcite.schema.IgniteTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.util.InternalDebug;
 
 /** */
 public class PlannerHelper {
@@ -95,13 +97,31 @@ public class PlannerHelper {
 
             rel = planner.transform(PlannerPhase.HEP_PROJECT_PUSH_DOWN, rel.getTraitSet(), rel);
 
+            if ("true".equalsIgnoreCase(System.getenv("MD_NEW_QUERY_PLANNER"))) {
+
+                ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(true);
+
+                rel = planner.transform(PlannerPhase.LOGICAL_OPTIMIZATIONS, rel.getTraitSet(), rel);
+                rel = planner.transform(PlannerPhase.JOIN_OPTIMIZATION, RelTraitSet.createEmpty(), rel);
+
+                ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(false);
+            }
+
             RelTraitSet desired = rel.getCluster().traitSet()
                 .replace(IgniteConvention.INSTANCE)
                 .replace(IgniteDistributions.single())
                 .replace(root.collation == null ? RelCollations.EMPTY : root.collation)
                 .simplify();
 
-            IgniteRel igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
+            IgniteRel igniteRel;
+
+            if ("true".equalsIgnoreCase(System.getenv("MD_NEW_QUERY_PLANNER"))) {
+                igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
+            } else {
+                igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
+            }
+
+            InternalDebug.alwaysLog(igniteRel.explain());
 
             if (!root.isRefTrivial()) {
                 final List<RexNode> projects = new ArrayList<>();

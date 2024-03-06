@@ -102,4 +102,14 @@ public class RelMetadataQueryEx extends RelMetadataQuery {
             }
         }
     }
+
+    private boolean allowNonIgniteCostFunctions;
+
+    public void setAllowNonIgniteCostFunctions(boolean a) {
+        allowNonIgniteCostFunctions = a;
+    }
+
+    public boolean allowNonIgniteCostFunctions() {
+        return allowNonIgniteCostFunctions;
+    }
 }

@@ -48,10 +48,13 @@ import org.apache.calcite.rex.RexVisitor;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
+import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
+import org.apache.ignite.util.InternalDebug;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -115,13 +118,26 @@ public class IgniteDistributedHashJoin extends IgniteHashJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
+        double distributionFactor = 1;
+
         // Account for distributed join on partition. We assume a roughly even distribution of data
         RelOptTable table = mq.getTableOrigin(getLeft());
         if (table != null) { // Could be null if we're doing a join of a join
-            leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+            distributionFactor = table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
         }
 
-        return computeSelfCost(planner, mq, leftCount, rightCount);
+       double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
+
+       RelOptCost cost = costFactory.makeCost(leftCount + rightCount,
+           leftCount * (IgniteCost.HASH_LOOKUP_COST) + rightCount * IgniteCost.ROW_PASS_THROUGH_COST / distributionFactor, // We do {leftCount} comparisons on a {rightCount} size hash table
+           0,
+           rightSize / distributionFactor,
+           0);
+
+       InternalDebug.log("Left: ", Double.toString(leftCount), " | Right: ", Double.toString(rightCount), " | Cost: ", cost.toString());
+
+       return cost;
+
 
     }
 
@@ -131,11 +147,14 @@ public class IgniteDistributedHashJoin extends IgniteHashJoin {
 
         List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>();
 
-        RelTraitSet outTraits = nodeTraits.replace(IgniteDistributions.single());
-
+        RelTraitSet outTraits = nodeTraits.replace(TraitUtils.distribution(right));
         RelTraitSet leftTraits = left.replace(IgniteDistributions.broadcast());
-        RelTraitSet rightTraits = right.replace(IgniteDistributions.any());
+        RelTraitSet rightTraits = right;
+        res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
 
+        leftTraits = leftTraits.replace(IgniteDistributions.single());
+        rightTraits = rightTraits.replace(IgniteDistributions.single());
+        outTraits = outTraits.replace(IgniteDistributions.single());
         res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
 
         return res;
@@ -143,7 +162,11 @@ public class IgniteDistributedHashJoin extends IgniteHashJoin {
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("rightFilter", getRightFilterCondition()).item("rightRequiredColumns", getRightRequiredColumns());
+        return super.explainTerms(pw)
+            .item("rightFilter", getRightFilterCondition())
+            .item("rightRequiredColumns", getRightRequiredColumns())
+            .item("dist", distribution())
+            ;
     }
 
     /** {@inheritDoc} */

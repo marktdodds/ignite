@@ -798,7 +798,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
                 cacheInjectedRoot = pctx.planner().transform(PlannerPhase.CACHE_OPTIMIZATION, cacheInjectedRoot.getTraitSet(), cacheInjectedRoot);
                 cacheInjectedRoot = new CachedRelInjector(ResultCache.CACHE).visit(cacheInjectedRoot);
                 InternalDebug.alwaysLog("Old plan:\n", originalRoot.explain(), "Cache-aware Plan:\n", cacheInjectedRoot.explain());
-            } catch (Exception err) {
+            } catch (Exception | AssertionError err) {
                 // Couldnt generate a cache aware plan so proceed with the normal one.
                 InternalDebug.log(err.getMessage());
             }

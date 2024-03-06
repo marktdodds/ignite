@@ -105,8 +105,9 @@ public class IgniteMdCumulativeCost implements MetadataHandler<BuiltInMetadata.C
 
         RelOptCostFactory costFactory = rel.getCluster().getPlanner().getCostFactory();
 
-        if (rel.getConvention() == Convention.NONE || distribution(rel) == any())
-            return costFactory.makeInfiniteCost();
+        if (!((RelMetadataQueryEx) mq).allowNonIgniteCostFunctions())
+            if (rel.getConvention() == Convention.NONE || distribution(rel) == any())
+                return costFactory.makeInfiniteCost();
 
         return costFactory.makeZeroCost().isLt(cost) ? cost : costFactory.makeTinyCost();
     }

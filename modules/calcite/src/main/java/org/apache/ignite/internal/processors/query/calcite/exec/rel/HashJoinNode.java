@@ -132,7 +132,18 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     /** {@inheritDoc} */
     @Override
     protected void rewindInternal() {
-        throw new UnsupportedOperationException();
+        requested = 0;
+        waitingLeft = 0;
+
+        leftInBuf.clear();
+        outboxBuf.clear();
+
+        if (waitingRight != NOT_WAITING) {
+            waitingRight = 0;
+            rightMaterialized.clear();
+        }
+        // If we are rewinding we should be able to keep the right HashMap the same?
+        // Todo this could be a spot for content validation problems...
     }
 
     /** {@inheritDoc} */
