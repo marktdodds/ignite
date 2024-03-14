@@ -35,6 +35,13 @@
 			<list>
 				<bean abstract="true" class="org.apache.ignite.configuration.CacheConfiguration" id="cache-template-bean">
 					<!-- when you create a template via XML configuration, you must add an asterisk to the name of the template -->
+					<property name="name" value="TPCH*"/>
+					<property name="cacheMode" value="PARTITIONED"/>
+					<property name="backups" value="0"/>
+					<property name="statisticsEnabled" value="true"/>
+				</bean>
+				<bean abstract="true" class="org.apache.ignite.configuration.CacheConfiguration" id="cache-template-bean">
+					<!-- when you create a template via XML configuration, you must add an asterisk to the name of the template -->
 					<property name="name" value="CacheA*"/>
 					<property name="cacheMode" value="PARTITIONED"/>
 					<property name="backups" value="0"/>
