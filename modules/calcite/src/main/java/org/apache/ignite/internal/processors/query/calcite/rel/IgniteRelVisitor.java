@@ -23,7 +23,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapHash
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
-import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
 
 /**
@@ -68,12 +68,7 @@ public interface IgniteRelVisitor<T> {
     /**
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */
-    T visit(IgniteDistributedHashJoin rel);
-
-    /**
-     * See {@link IgniteRelVisitor#visit(IgniteRel)}
-     */
-    T visit(CacheableIgniteDistributedHashJoin rel);
+    T visit(CacheableIgniteHashJoin rel);
 
     /**
      * See {@link IgniteRelVisitor#visit(IgniteRel)}

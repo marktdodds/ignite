@@ -34,14 +34,12 @@ import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.CacheQueryReadEvent;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObjectUtils;
 import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
-import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.cache.query.CacheQueryType;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryType;
@@ -152,6 +150,9 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
     private QueryPlanCache qryPlanCache;
 
     /**  */
+    private ResultCache resultCache;
+
+    /**  */
     private SchemaHolder schemaHolder;
 
     /**  */
@@ -199,12 +200,6 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
     /**  */
     private MemoryTracker memoryTracker;
 
-    /**  */
-    private GridCacheProcessor gridCacheProcessor;
-
-    /**  */
-    private GridDiscoveryManager gridDiscoveryManager;
-
     /**
      * @param ctx Kernal.
      */
@@ -237,10 +232,24 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
     }
 
     /**
+     * @param resultCache Query cache.
+     */
+    public void resultCache(ResultCache resultCache) {
+        this.resultCache = resultCache;
+    }
+
+    /**
      * @return Query cache.
      */
     public QueryPlanCache queryPlanCache() {
         return qryPlanCache;
+    }
+
+    /**
+     * @return Result cache.
+     */
+    public ResultCache resultCache() {
+        return resultCache;
     }
 
     /**
@@ -428,15 +437,6 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         return memoryTracker;
     }
 
-    /**  */
-    private void gridCacheProcessor(GridCacheProcessor gcp) {
-        gridCacheProcessor = gcp;
-    }
-
-    /**  */
-    private void gridDiscoveryManager(GridDiscoveryManager gdm) {
-        gridDiscoveryManager = gdm;
-    }
 
     /** {@inheritDoc} */
     @Override
@@ -449,12 +449,10 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         performanceStatisticsProcessor(ctx.performanceStatistics());
         iteratorsHolder(new ClosableIteratorsHolder(log));
 
-        gridCacheProcessor(ctx.cache());
-        gridDiscoveryManager(ctx.discovery());
-
         CalciteQueryProcessor proc = Objects.requireNonNull(
             Commons.lookupComponent(ctx, CalciteQueryProcessor.class));
 
+        resultCache(proc.resultCache());
         queryPlanCache(proc.queryPlanCache());
         schemaHolder(proc.schemaHolder());
         taskExecutor(proc.taskExecutor());
@@ -652,7 +650,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             qryParams);
 
         Node<Row> node = new LogicalRelImplementor<>(ectx, partitionService(), mailboxRegistry(),
-            exchangeService(), failureProcessor()).go(fragment.root());
+            exchangeService(), failureProcessor(), resultCache()).go(fragment.root());
 
         qry.run(ectx, execPlan, plan.fieldsMetadata(), node);
 
@@ -796,11 +794,11 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
                 cacheInjectedRoot.getCluster().setMetadataProvider(new CachingRelMetadataProvider(IgniteMetadata.METADATA_PROVIDER, planner));
                 cacheInjectedRoot.getCluster().setMetadataQuerySupplier(RelMetadataQueryEx::create);
                 cacheInjectedRoot = pctx.planner().transform(PlannerPhase.CACHE_OPTIMIZATION, cacheInjectedRoot.getTraitSet(), cacheInjectedRoot);
-                cacheInjectedRoot = new CachedRelInjector(ResultCache.CACHE).visit(cacheInjectedRoot);
+                cacheInjectedRoot = new CachedRelInjector(resultCache()).visit(cacheInjectedRoot);
                 InternalDebug.alwaysLog("Old plan:\n", originalRoot.explain(), "Cache-aware Plan:\n", cacheInjectedRoot.explain());
             } catch (Exception | AssertionError err) {
                 // Couldnt generate a cache aware plan so proceed with the normal one.
-                InternalDebug.log(err.getMessage());
+                err.printStackTrace();
             }
         }
 
@@ -826,7 +824,8 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             partitionService(),
             mailboxRegistry(),
             exchangeService(),
-            failureProcessor()
+            failureProcessor(),
+            resultCache()
         )
             .go(executionRoot);
 

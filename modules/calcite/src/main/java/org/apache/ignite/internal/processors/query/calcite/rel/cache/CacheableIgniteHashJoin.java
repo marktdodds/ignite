@@ -15,7 +15,7 @@ import org.apache.calcite.sql.validate.SqlValidatorUtil;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.HashJoinNode;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRelVisitor;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteTable;
@@ -25,24 +25,24 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Set;
 
-public class CacheableIgniteDistributedHashJoin extends IgniteDistributedHashJoin {
+public class CacheableIgniteHashJoin extends IgniteHashJoin {
 
     private HashJoinNode cachedExecutionNode;
 
-    public CacheableIgniteDistributedHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
-                                              RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
+    public CacheableIgniteHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
+                                   RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
         super(cluster, traitSet, left, right, condition, variablesSet, joinType, null, null);
     }
 
 
-    public CacheableIgniteDistributedHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
-                                              RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType,
-                                              RexNode rightFilterCondition, ImmutableBitSet rightRequiredColumns) {
+    public CacheableIgniteHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
+                                   RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType,
+                                   RexNode rightFilterCondition, ImmutableBitSet rightRequiredColumns) {
         super(cluster, traitSet, left, right, condition, variablesSet, joinType, rightFilterCondition, rightRequiredColumns);
     }
 
     /**  */
-    public CacheableIgniteDistributedHashJoin(RelInput input) {
+    public CacheableIgniteHashJoin(RelInput input) {
         this(input.getCluster(),
             input.getTraitSet().replace(IgniteConvention.INSTANCE),
             input.getInputs().get(0),
@@ -70,7 +70,7 @@ public class CacheableIgniteDistributedHashJoin extends IgniteDistributedHashJoi
     @Override
     public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
                      boolean semiJoinDone) {
-        return new CacheableIgniteDistributedHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType, getRightFilterCondition(), getRightRequiredColumns());
+        return new CacheableIgniteHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType, getRightFilterCondition(), getRightRequiredColumns());
     }
 
     /** {@inheritDoc} */
@@ -82,7 +82,7 @@ public class CacheableIgniteDistributedHashJoin extends IgniteDistributedHashJoi
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new CacheableIgniteDistributedHashJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
+        return new CacheableIgniteHashJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
             getVariablesSet(), getJoinType(), getRightFilterCondition(), getRightRequiredColumns());
     }
 

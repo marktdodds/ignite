@@ -37,6 +37,7 @@ import org.apache.ignite.internal.processors.query.calcite.externalize.RelInputE
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
+import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 import java.util.ArrayList;
@@ -112,13 +113,17 @@ public class IgniteDistributedMergeJoin extends IgniteMergeJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
+        double distributionFactor = 1;
+
         // Account for distributed join on partition. We assume a roughly even distribution of data
-        RelOptTable table = mq.getTableOrigin(getLeft());
-        if (table != null) { // Could be null if we're doing a join of a join
-            leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
+            RelOptTable table = mq.getTableOrigin(getLeft());
+            if (table != null) { // Could be null if we're doing a join of a join
+                distributionFactor = table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+            }
         }
 
-        return computeSelfCost(costFactory, leftCount, rightCount);
+        return computeSelfCost(costFactory, leftCount, rightCount / distributionFactor);
     }
 
     @Override
@@ -127,14 +132,30 @@ public class IgniteDistributedMergeJoin extends IgniteMergeJoin {
 
         List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>();
 
-        RelTraitSet outTraits = nodeTraits.replace(IgniteDistributions.single());
-
+        RelTraitSet outTraits = nodeTraits.replace(TraitUtils.distribution(right));
         RelTraitSet leftTraits = left.replace(IgniteDistributions.broadcast());
-        RelTraitSet rightTraits = right.replace(IgniteDistributions.any());
-
+        RelTraitSet rightTraits = right;
         res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
 
+        // TODO roll mergejoin and this into 1
+
+//        leftTraits = leftTraits.replace(IgniteDistributions.single());
+//        rightTraits = rightTraits.replace(IgniteDistributions.single());
+//        outTraits = outTraits.replace(IgniteDistributions.single());
+//        res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
+
         return res;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughDistribution(
+        RelTraitSet desiredNodeTraits,
+        List<RelTraitSet> requiredInputTraits
+    ) {
+//        if (TraitUtils.distribution(desiredNodeTraits).getType() == SINGLETON)
+//            return Pair.of(desiredNodeTraits.replace(IgniteDistributions.single()), Commons.transform(requiredInputTraits, t -> t.replace(IgniteDistributions.single())));
+        return null;
     }
 
     /** {@inheritDoc} */
@@ -142,7 +163,7 @@ public class IgniteDistributedMergeJoin extends IgniteMergeJoin {
     public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
                      boolean semiJoinDone) {
         return new IgniteDistributedMergeJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType,
-                    left.getTraitSet().getCollation(), right.getTraitSet().getCollation());
+            left.getTraitSet().getCollation(), right.getTraitSet().getCollation());
     }
 
     /** {@inheritDoc} */
@@ -155,6 +176,6 @@ public class IgniteDistributedMergeJoin extends IgniteMergeJoin {
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteDistributedMergeJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
-                    getVariablesSet(), getJoinType(), leftCollation, rightCollation);
+            getVariablesSet(), getJoinType(), leftCollation, rightCollation);
     }
 }

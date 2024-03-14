@@ -26,6 +26,7 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinRelType;
@@ -36,8 +37,8 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteC
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
+import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
-import org.apache.ignite.util.InternalDebug;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,22 +97,18 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        // Account for distributed join on partition. We assume a roughly even distribution of data
-        RelOptTable table = mq.getTableOrigin(getLeft());
-        if (table != null) { // Could be null if we're doing a join of a join
-            leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
+            // Partial join on agg'd partition
+            RelOptTable table = mq.getTableOrigin(getRight());
+            if (table != null) {
+                rightCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+            }
         }
 
-        // Same for the right table
-        table = mq.getTableOrigin(getRight());
-        if (table != null) {
-            leftCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
-        }
 
         double rows = leftCount * rightCount;
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
-        InternalDebug.log("DJ: ", costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0).toString());
         return costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0);
     }
 
@@ -126,14 +123,35 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
 
         List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>();
 
-        RelTraitSet outTraits = nodeTraits.replace(IgniteDistributions.single());
-
+        RelTraitSet outTraits = nodeTraits.replace(TraitUtils.distribution(right));
         RelTraitSet leftTraits = left.replace(IgniteDistributions.broadcast());
-        RelTraitSet rightTraits = right.replace(IgniteDistributions.any());
-
+        RelTraitSet rightTraits = right;
         res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
 
+        // TODO roll NLJ and this into 1
+
+//        leftTraits = leftTraits.replace(IgniteDistributions.single());
+//        rightTraits = rightTraits.replace(IgniteDistributions.single());
+//        outTraits = outTraits.replace(IgniteDistributions.single());
+//        res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
+
         return res;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughDistribution(
+        RelTraitSet nodeTraits,
+        List<RelTraitSet> inputTraits
+    ) {
+        return null;
+    }
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw)
+            .item("dist", distribution())
+            ;
     }
 
     /** {@inheritDoc} */

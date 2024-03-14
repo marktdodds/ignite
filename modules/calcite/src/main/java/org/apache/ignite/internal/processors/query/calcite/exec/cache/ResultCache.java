@@ -1,17 +1,27 @@
 package org.apache.ignite.internal.processors.query.calcite.exec.cache;
 
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
+import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
+import org.apache.ignite.internal.processors.query.QueryField;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
+import org.apache.ignite.internal.processors.query.calcite.util.AbstractService;
+import org.apache.ignite.internal.processors.query.schema.AbstractSchemaChangeListener;
+import org.apache.ignite.internal.processors.query.schema.management.IndexDescriptor;
+import org.apache.ignite.internal.processors.subscription.GridInternalSubscriptionProcessor;
+import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class ResultCache {
+public class ResultCache extends AbstractService {
 
     /**  */
-    public static final ResultCache CACHE = new ResultCache();
+    private final GridInternalSubscriptionProcessor subscriptionProc;
 
     /**  */
     private static final long MAX_CACHE_SIZE = IgniteSystemProperties.getLong("MD_MAX_CACHE_SIZE_MB", 1024) * 1000000;
@@ -24,6 +34,22 @@ public class ResultCache {
 
     /** Rel Cache */
     private final ArrayList<CacheEntry> cachedRels = new ArrayList<>();
+
+    /**
+     * @param ctx Kernal context.
+     */
+    public ResultCache(GridKernalContext ctx) {
+        super(ctx);
+
+        subscriptionProc = ctx.internalSubscriptionProcessor();
+
+        init();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void init() {
+        subscriptionProc.registerSchemaChangeListener(new ResultCache.SchemaListener());
+    }
 
     /**
      * Lookup an IgniteRel in the cache, returning the match if found (or null if not)
@@ -89,6 +115,16 @@ public class ResultCache {
         return true;
     }
 
+    private void clear() {
+        lock.writeLock().lock();
+        try {
+            cachedRels.clear();
+            InternalDebug.alwaysLog("Clearing result cache!");
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     /**
      * CacheEntry wrapper class
      */
@@ -104,6 +140,68 @@ public class ResultCache {
 
         public void cacheHit() {
             lastUsed = System.currentTimeMillis();
+        }
+    }
+
+    /** Schema change listener. */
+    private class SchemaListener extends AbstractSchemaChangeListener {
+        /** {@inheritDoc} */
+        @Override public void onSchemaDropped(String schemaName) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onSqlTypeDropped(
+            String schemaName,
+            GridQueryTypeDescriptor typeDescriptor,
+            boolean destroy
+        ) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onIndexCreated(
+            String schemaName,
+            String tblName,
+            String idxName,
+            IndexDescriptor idxDesc
+        ) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onIndexDropped(String schemaName, String tblName, String idxName) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onIndexRebuildStarted(String schemaName, String tblName) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onIndexRebuildFinished(String schemaName, String tblName) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onColumnsAdded(
+            String schemaName,
+            GridQueryTypeDescriptor typeDesc,
+            GridCacheContextInfo<?, ?> cacheInfo,
+            List<QueryField> cols
+        ) {
+            clear();
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onColumnsDropped(
+            String schemaName,
+            GridQueryTypeDescriptor typeDesc,
+            GridCacheContextInfo<?, ?> cacheInfo,
+            List<String> cols
+        ) {
+            clear();
         }
     }
 

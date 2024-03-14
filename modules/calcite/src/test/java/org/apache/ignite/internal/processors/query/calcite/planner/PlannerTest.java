@@ -41,6 +41,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext
 import org.apache.ignite.internal.processors.query.calcite.exec.LogicalRelImplementor;
 import org.apache.ignite.internal.processors.query.calcite.exec.MailboxRegistryImpl;
 import org.apache.ignite.internal.processors.query.calcite.exec.QueryTaskExecutorImpl;
+import org.apache.ignite.internal.processors.query.calcite.exec.cache.ResultCache;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.Node;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.Outbox;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.RootNode;
@@ -432,7 +433,7 @@ public class PlannerTest extends AbstractPlannerTest {
             Commons.parametersMap(ctx.parameters()));
 
         return new LogicalRelImplementor<>(ectx, c -> r -> 0, mailboxRegistry, exchangeSvc,
-            new TestFailureProcessor(kernal)).go(fragment.root());
+            new TestFailureProcessor(kernal), new ResultCache(kernal)).go(fragment.root());
     }
 
     /**

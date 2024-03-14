@@ -76,6 +76,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.QueryTaskExecuto
 import org.apache.ignite.internal.processors.query.calcite.exec.QueryTaskExecutorImpl;
 import org.apache.ignite.internal.processors.query.calcite.exec.TimeoutService;
 import org.apache.ignite.internal.processors.query.calcite.exec.TimeoutServiceImpl;
+import org.apache.ignite.internal.processors.query.calcite.exec.cache.ResultCache;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexExecutorImpl;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintsConfig;
 import org.apache.ignite.internal.processors.query.calcite.message.MessageService;
@@ -181,6 +182,9 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
     private final QueryPlanCache qryPlanCache;
 
     /** */
+    private final ResultCache resultCache;
+
+    /** */
     private final QueryParserMetricsHolder parserMetrics;
 
     /** */
@@ -248,6 +252,7 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
         prepareSvc = new PrepareServiceImpl(ctx);
         timeoutSvc = new TimeoutServiceImpl(ctx);
         qryReg = new QueryRegistryImpl(ctx);
+        resultCache = new ResultCache(ctx);
 
         QueryEngineConfiguration[] qryEnginesCfg = ctx.config().getSqlConfiguration().getQueryEnginesConfiguration();
 
@@ -275,6 +280,13 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
      */
     public QueryPlanCache queryPlanCache() {
         return qryPlanCache;
+    }
+
+    /**
+     * @return Intermediate query result cache.
+     */
+    public ResultCache resultCache() {
+        return resultCache;
     }
 
     /**

@@ -2,13 +2,12 @@ package org.apache.ignite.internal.processors.query.calcite.exec.cache;
 
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCollect;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteExchange;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexBound;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexCount;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
@@ -35,7 +34,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapHash
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
-import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
 
 class CachedRelMatcher implements IgniteRelVisitor<Boolean> {
@@ -98,14 +97,6 @@ class CachedRelMatcher implements IgniteRelVisitor<Boolean> {
      */
     @Override
     public Boolean visit(IgniteHashJoin rel) {
-        return false;
-    }
-
-    /**
-     * See {@link IgniteRelVisitor#visit(IgniteRel)}
-     */
-    @Override
-    public Boolean visit(IgniteDistributedHashJoin rel) {
         if (!rel.cacheMatches(other)) return false;
         other = (IgniteRel) other.getInput(1);
         return visit((IgniteRel) rel.getRight());
@@ -115,8 +106,8 @@ class CachedRelMatcher implements IgniteRelVisitor<Boolean> {
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */
     @Override
-    public Boolean visit(CacheableIgniteDistributedHashJoin rel) {
-        return visit((IgniteDistributedHashJoin) rel);
+    public Boolean visit(CacheableIgniteHashJoin rel) {
+        return visit((IgniteHashJoin) rel);
     }
 
     /**

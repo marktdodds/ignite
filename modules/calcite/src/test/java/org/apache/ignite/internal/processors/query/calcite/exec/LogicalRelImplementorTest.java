@@ -144,6 +144,7 @@ public class LogicalRelImplementorTest extends GridCommonAbstractTest {
             null,
             null,
             null,
+            null,
             null
         );
 

@@ -46,7 +46,9 @@ import org.apache.calcite.util.Optionality;
 import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.DistributedHashJoinConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.DistributedMergeJoinConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
@@ -299,9 +301,6 @@ public enum PlannerPhase {
                     JoinPushThroughJoinRule.Config.LEFT
                         .withOperandFor(LogicalJoin.class).toRule(),
 
-                    //                JoinPushThroughJoinRule.Config.RIGHT
-                    //                    .withOperandFor(LogicalJoin.class).toRule(),
-
                     JoinPushExpressionsRule.Config.DEFAULT
                         .withOperandFor(LogicalJoin.class).toRule(),
 
@@ -378,35 +377,6 @@ public enum PlannerPhase {
         }
     },
 
-    JOIN_OPTIMIZATION("Join optimization phase") {
-        @Override
-        public RuleSet getRules(PlanningContext ctx) {
-            return ctx.rules(RuleSets.ofList(
-
-                JoinPushExpressionsRule.Config.DEFAULT
-                    .withOperandFor(LogicalJoin.class).toRule(),
-
-                JoinConditionPushRule.JoinConditionPushRuleConfig.DEFAULT
-                    .withOperandSupplier(b -> b.operand(LogicalJoin.class)
-                        .anyInputs()).toRule(),
-
-                JoinPushThroughJoinRule.Config.LEFT
-                    .withOperandFor(LogicalJoin.class).toRule(),
-
-//                JoinPushThroughJoinRule.Config.RIGHT
-//                    .withOperandFor(LogicalJoin.class).toRule(),
-
-                CoreRules.JOIN_COMMUTE,
-                CoreRules.JOIN_COMMUTE_OUTER
-            ));
-        }
-
-        @Override
-        public Program getProgram(PlanningContext ctx) {
-            return cbo(getRules(ctx));
-        }
-    },
-
     /**  */
     PHYSICAL_OPTIMIZATION("Physical optimizations and conversions phase") {
         /** {@inheritDoc} */
@@ -425,8 +395,14 @@ public enum PlannerPhase {
                 LogicalOrToUnionRule.INSTANCE
             ));
 
-            if ("true".equalsIgnoreCase(System.getenv("MD_USE_DIST_HJ")))
-                rules.add(DistributedHashJoinConverterRule.INSTANCE);
+            if ("true".equalsIgnoreCase(System.getenv("MD_USE_HJ")))
+                rules.add(HashJoinConverterRule.INSTANCE);
+
+            if ("true".equalsIgnoreCase(System.getenv("MD_USE_DIST_NLJ")))
+                rules.add(DistributedNestedLoopJoinConverterRule.INSTANCE);
+
+            if ("true".equalsIgnoreCase(System.getenv("MD_USE_DIST_MJ")))
+                rules.add(DistributedMergeJoinConverterRule.INSTANCE);
 
             rules.addAll(
                 Arrays.asList(

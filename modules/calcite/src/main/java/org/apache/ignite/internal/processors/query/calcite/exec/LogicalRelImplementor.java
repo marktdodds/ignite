@@ -74,13 +74,12 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGr
 import org.apache.ignite.internal.processors.query.calcite.prepare.bounds.SearchBounds;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCollect;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteExchange;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexBound;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexCount;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
@@ -107,7 +106,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapHash
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteReduceSortAggregate;
-import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.set.IgniteSetOp;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.schema.CacheTableDescriptor;
@@ -142,6 +141,9 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
     private final ExchangeService exchangeSvc;
 
     /**  */
+    private final ResultCache resultCache;
+
+    /**  */
     private final MailboxRegistry mailboxRegistry;
 
     /**  */
@@ -159,12 +161,14 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         AffinityService affSrvc,
         MailboxRegistry mailboxRegistry,
         ExchangeService exchangeSvc,
-        FailureProcessor failure
+        FailureProcessor failure,
+        ResultCache resultCache
     ) {
         this.affSrvc = affSrvc;
         this.mailboxRegistry = mailboxRegistry;
         this.exchangeSvc = exchangeSvc;
         this.ctx = ctx;
+        this.resultCache = resultCache;
 
         expressionFactory = ctx.expressionFactory();
     }
@@ -306,13 +310,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
     /** {@inheritDoc} */
     @Override
-    public Node<Row> visit(IgniteDistributedHashJoin rel) {
-        return visit((IgniteHashJoin) rel);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public Node<Row> visit(CacheableIgniteDistributedHashJoin rel) {
+    public Node<Row> visit(CacheableIgniteHashJoin rel) {
 
         HashJoinNode<Row> node = createHashJoinNode(rel);
         Node<Row> leftInput = visit(rel.getLeft());
@@ -321,7 +319,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         if (rel.getCachedExecutionNode() == null) {
             rel.setCachedExecutionNode(node);
             rightInput = visit(rel.getRight());
-            node.setOnComplete(() -> ResultCache.CACHE.checkAndAddCompletedRel(rel, node.getCacheMemorySize()));
+            node.setOnComplete(() -> resultCache.checkAndAddCompletedRel(rel, node.getCacheMemorySize()));
         } else {
             node.injectFromCache((HashJoinNode<Row>) rel.getCachedExecutionNode());
         }

@@ -102,7 +102,6 @@ public class PlannerHelper {
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(true);
 
                 rel = planner.transform(PlannerPhase.LOGICAL_OPTIMIZATIONS, rel.getTraitSet(), rel);
-                rel = planner.transform(PlannerPhase.JOIN_OPTIMIZATION, RelTraitSet.createEmpty(), rel);
 
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(false);
             }

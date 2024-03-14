@@ -19,12 +19,11 @@ package org.apache.ignite.internal.processors.query.calcite.prepare;
 
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteLimit;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteMergeJoin;
@@ -36,7 +35,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSortedIndex
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableFunctionScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableModify;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
-import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteDistributedHashJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.cache.CacheableIgniteHashJoin;
 
 /**  */
 public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
@@ -98,15 +97,7 @@ public class IgniteRelRexNodeShuttle extends IgniteRelShuttle {
 
     /** {@inheritDoc} */
     @Override
-    public IgniteRel visit(IgniteDistributedHashJoin rel) {
-        rexShuttle.apply(rel.getCondition());
-
-        return super.visit(rel);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public IgniteRel visit(CacheableIgniteDistributedHashJoin rel) {
+    public IgniteRel visit(CacheableIgniteHashJoin rel) {
         rexShuttle.apply(rel.getCondition());
 
         return super.visit(rel);
