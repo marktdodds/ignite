@@ -68,8 +68,6 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     /** */
     private boolean exchangeFinished;
 
-    /** */
-    private final InternalDebug debug;
 
     /**
      * @param ctx Execution context.
@@ -95,8 +93,6 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
         this.exchangeId = exchangeId;
         this.dest = dest;
 
-        debug = InternalDebug.once("OutboxMessageCounter_" + queryId() + "_" + ctx.fragmentId() + "->" + targetFragmentId);
-        debug.start();
     }
 
     /** {@inheritDoc} */
@@ -205,7 +201,6 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     /** */
     private void sendBatch(UUID nodeId, int batchId, boolean last, List<Row> rows) throws IgniteCheckedException {
         exchange.sendBatch(nodeId, queryId(), targetFragmentId, exchangeId, batchId, last, rows, rowType());
-        debug.counterAdd(rows.size());
     }
 
     /** */
