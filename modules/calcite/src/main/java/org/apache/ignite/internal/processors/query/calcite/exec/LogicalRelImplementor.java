@@ -324,7 +324,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
             node.injectFromCache((HashJoinNode<Row>) rel.getCachedExecutionNode());
         }
 
-        if (rel.getRightFilterCondition() != null) node.setRightPreJoinPredicate(expressionFactory.predicate(rel.getRightFilterCondition(), rel.getRight().getRowType()));
+        if (rel.getRightFilterCondition() != null) node.setRightPreJoinPredicate(expressionFactory.predicate(rel.getRightFilterCondition(), rel.getRightRowTypeWithColumnFilter()));
         if (rel.getRightRequiredColumns() != null) node.setRightColumnFilter(rel.getRightRequiredColumns());
 
         node.register(F.asList(leftInput, rightInput));

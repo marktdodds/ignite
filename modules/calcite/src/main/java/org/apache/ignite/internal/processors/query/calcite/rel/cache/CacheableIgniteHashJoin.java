@@ -93,4 +93,8 @@ public class CacheableIgniteHashJoin extends IgniteHashJoin {
         return SqlValidatorUtil.deriveJoinRowType(left.getRowType(), rightTableDerivedType, joinType, getCluster().getTypeFactory(), null, getSystemFieldList());
     }
 
+    public RelDataType getRightRowTypeWithColumnFilter() {
+        return right.getTable().unwrap(IgniteTable.class).getRowType(Commons.typeFactory(getCluster()), getRightRequiredColumns());
+    }
+
 }
