@@ -28,6 +28,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHashKey;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHasher;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.ObjectSizeCalculator;
+import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,6 +47,7 @@ import java.util.function.Predicate;
 /**  */
 public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     /** Special value to highlights that all row were received and we are not waiting any more. */
+    protected final List<Row> EMPTY_LIST = (List<Row>) Commons.EMPTY_LIST;
     protected static final int NOT_WAITING = -1;
 
     /**  */
@@ -416,9 +418,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                         Row left = leftInBuf.remove();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
-                        List<Row> bucket = rightMaterialized.get(hashId);
+                        List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
 
-                        if (bucket == null) continue;
                         for (Row right : bucket) {
                             Row filtered = applyRightPredicateAndColumnFilter(right);
                             if (filtered == null) continue;
@@ -486,8 +487,9 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                         if (bucket == null) {
                             pushDownstream(handler.concat(left, rightRowFactory.create()));
                         } else for (Row right : bucket) {
-                            Row row = handler.concat(left, right);
-                            pushDownstream(row);
+                            Row filtered = applyRightPredicateAndColumnFilter(right);
+                            if (filtered == null) continue;
+                            pushDownstream(handler.concat(left, filtered));
                         }
 
                     }
@@ -559,13 +561,16 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                         Row left = leftInBuf.remove();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
-                        List<Row> bucket = rightMaterialized.get(hashId);
-                        if (bucket == null) continue;
-
-                        rightNotMatched.remove(hashId);
+                        List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
+                        boolean sent = false;
                         for (Row right : bucket) {
-                            pushDownstream(handler.concat(left, right));
+                            Row filtered = applyRightPredicateAndColumnFilter(right);
+                            if (filtered == null) continue;
+                            pushDownstream(handler.concat(left, filtered));
+                            sent = true;
                         }
+
+                        if (sent) rightNotMatched.remove(hashId);
                     }
                 } finally {
                     inLoop = false;
@@ -584,8 +589,9 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                             it.remove();
 
                             for (Row right : rightMaterialized.get(key)) {
-                                Row row = handler.concat(leftRowFactory.create(), right);
-                                pushDownstream(row);
+                                Row filtered = applyRightPredicateAndColumnFilter(right);
+                                if (filtered == null) continue;
+                                pushDownstream(handler.concat(leftRowFactory.create(), filtered));
                             }
                         }
                     } finally {
@@ -655,18 +661,20 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                         Row left = leftInBuf.remove();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
-                        List<Row> bucket = rightMaterialized.get(hashId);
-                        if (bucket == null) {
-                            // Left outer
-                            pushDownstream(handler.concat(left, rightRowFactory.create()));
-                            continue;
-                        }
-
-                        rightNotMatched.remove(hashId);
+                        List<Row> bucket = rightMaterialized.getOrDefault(hashId, new ArrayList<>());
+                        boolean sent = false;
                         for (Row right : bucket) {
                             // Inner
-                            pushDownstream(handler.concat(left, right));
+                            Row filtered = applyRightPredicateAndColumnFilter(right);
+                            if (filtered == null) continue;
+                            pushDownstream(handler.concat(left, filtered));
+                            sent = true;
                         }
+
+                        if (!sent) // Left outer
+                            pushDownstream(handler.concat(left, rightRowFactory.create()));
+                        else
+                            rightNotMatched.remove(hashId);
 
                     }
                 } finally {
@@ -687,8 +695,9 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                             it.remove();
 
                             for (Row right : rightMaterialized.get(key)) {
-                                Row row = handler.concat(leftRowFactory.create(), right);
-                                pushDownstream(row);
+                                Row filtered = applyRightPredicateAndColumnFilter(right);
+                                if (filtered == null) continue;
+                                pushDownstream(handler.concat(leftRowFactory.create(), filtered)); // Right outer
                             }
                         }
                     } finally {
@@ -731,7 +740,16 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                     Row left = leftInBuf.remove();
                     RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
-                    if (rightMaterialized.containsKey(hashId)) pushDownstream(left);
+                    List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
+
+                    // Because we potentially moved predicates up we have to ensure we have at
+                    // least 1 valid right row or we'll get incorrect results
+                    for (Row right : bucket) {
+                        Row filtered = applyRightPredicateAndColumnFilter(right);
+                        if (filtered == null) continue;
+                        pushDownstream(left);
+                        break;
+                    }
 
                 }
             }
@@ -771,7 +789,14 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                         checkState();
                         Row left = leftInBuf.remove();
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
-                        if (!rightMaterialized.containsKey(hashId)) pushDownstream(left);
+                        List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
+                        // Because we potentially moved predicates up we have to ensure we have at
+                        // least 1 valid right row or we'll get incorrect results
+                        for (Row r : bucket) {
+                            if (applyRightPredicateAndColumnFilter(r) == null) continue;
+                            pushDownstream(left);
+                            break;
+                        }
                     }
                 } finally {
                     inLoop = false;

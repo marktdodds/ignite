@@ -33,6 +33,8 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.config.CalciteSystemProperty;
 import org.apache.calcite.linq4j.Ord;
 import org.apache.calcite.plan.Context;
@@ -75,6 +77,9 @@ import org.jetbrains.annotations.Nullable;
  * Utility methods.
  */
 public final class Commons {
+
+    public static final List<Object> EMPTY_LIST = ImmutableList.of();
+
     /** */
     private Commons() {
         // No-op.
