@@ -34,6 +34,8 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>ignite-runner</module>
+        <module>test-harness</module>
         <module>modules/checkstyle</module>
         <module>parent</module>
         <module>parent-internal</module>
@@ -66,7 +68,7 @@
         <module>modules/opencensus</module>
         <module>modules/control-utility</module>
         <module>modules/calcite</module>
-    </modules>
+	</modules>
 
     <profiles>
         <profile>
