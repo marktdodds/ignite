@@ -35,7 +35,6 @@
 
     <modules>
         <module>ignite-runner</module>
-        <module>test-harness</module>
         <module>modules/checkstyle</module>
         <module>parent</module>
         <module>parent-internal</module>
