@@ -36,6 +36,7 @@ import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.AtomicLongMetric;
 import org.apache.ignite.internal.processors.metric.impl.HistogramMetricImpl;
 import org.apache.ignite.internal.processors.metric.impl.HitRateMetric;
+import org.apache.ignite.internal.processors.metric.impl.IntMetricImpl;
 import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
 import org.apache.ignite.internal.processors.metric.impl.LongGauge;
 import org.apache.ignite.internal.processors.metric.impl.MetricUtils;
@@ -247,6 +248,9 @@ public class CacheMetricsImpl implements CacheMetrics {
     /** Number of keys processed during index rebuilding. */
     private final LongAdderMetric idxRebuildKeyProcessed;
 
+    /** The number of local node partitions that remain to be processed to complete indexing. */
+    private final IntMetricImpl idxBuildPartitionsLeftCnt;
+
     /**
      * Creates cache metrics.
      *
@@ -433,6 +437,9 @@ public class CacheMetricsImpl implements CacheMetrics {
 
         idxRebuildKeyProcessed = mreg.longAdderMetric("IndexRebuildKeyProcessed",
             "Number of keys processed during the index rebuilding.");
+
+        idxBuildPartitionsLeftCnt = mreg.intMetric("IndexBuildPartitionsLeftCount",
+            "The number of local node partitions that remain to be processed to complete indexing.");
     }
 
     /**
@@ -1674,6 +1681,26 @@ public class CacheMetricsImpl implements CacheMetrics {
      */
     public UUID getLocalNodeId() {
         return cctx.localNodeId();
+    }
+
+    /** */
+    public void decrementIndexBuildPartitionsLeftCount() {
+        idxBuildPartitionsLeftCnt.decrement();
+    }
+
+    /** */
+    public void addIndexBuildPartitionsLeftCount(int val) {
+        idxBuildPartitionsLeftCnt.add(val);
+    }
+
+    /** */
+    public void resetIndexBuildPartitionsLeftCount() {
+        idxBuildPartitionsLeftCnt.reset();
+    }
+
+    /** {@inheritDoc} */
+    @Override public int getIndexBuildPartitionsLeftCount() {
+        return idxBuildPartitionsLeftCnt.value();
     }
 
     /** {@inheritDoc} */

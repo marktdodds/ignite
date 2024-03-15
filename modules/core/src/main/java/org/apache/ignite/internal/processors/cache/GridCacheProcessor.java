@@ -67,6 +67,7 @@ import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.DeploymentMode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
+import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.configuration.WarmUpConfiguration;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.GridKernalContext;
@@ -78,7 +79,8 @@ import org.apache.ignite.internal.IgniteTransactionsEx;
 import org.apache.ignite.internal.binary.BinaryContext;
 import org.apache.ignite.internal.binary.BinaryMarshaller;
 import org.apache.ignite.internal.binary.GridBinaryMarshaller;
-import org.apache.ignite.internal.cache.transform.CacheObjectTransformerManager;
+import org.apache.ignite.internal.cdc.CdcManager;
+import org.apache.ignite.internal.cdc.CdcUtilityActiveCdcManager;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.cluster.DetachedClusterNode;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
@@ -108,7 +110,6 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.topology.Part
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearAtomicCache;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTransactionalCache;
 import org.apache.ignite.internal.processors.cache.dr.GridCacheDrManager;
-import org.apache.ignite.internal.processors.cache.jta.CacheJtaManagerAdapter;
 import org.apache.ignite.internal.processors.cache.mvcc.MvccCachingManager;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegion;
 import org.apache.ignite.internal.processors.cache.persistence.DatabaseLifecycleListener;
@@ -206,6 +207,7 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_CACHE_REMOVED_ENTRIES_TTL;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_SKIP_CONFIGURATION_CONSISTENCY_CHECK;
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_WAL_MMAP;
 import static org.apache.ignite.IgniteSystemProperties.getBoolean;
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
@@ -3033,15 +3035,10 @@ public class GridCacheProcessor extends GridProcessorAdapter {
         GridKernalContext kernalCtx,
         Collection<CacheStoreSessionListener> storeSesLsnrs
     ) throws IgniteCheckedException {
-        IgniteTxManager tm = new IgniteTxManager();
-        GridCacheMvccManager mvccMgr = new GridCacheMvccManager();
-        GridCacheVersionManager verMgr = new GridCacheVersionManager();
-        GridCacheDeploymentManager depMgr = new GridCacheDeploymentManager();
-        GridCachePartitionExchangeManager exchMgr = new GridCachePartitionExchangeManager();
-
         IgniteCacheDatabaseSharedManager dbMgr;
         IgnitePageStoreManager pageStoreMgr = null;
         IgniteWriteAheadLogManager walMgr = null;
+        CdcManager cdcMgr = null;
 
         if (CU.isPersistenceEnabled(ctx.config()) && !ctx.clientNode()) {
             dbMgr = new GridCacheDatabaseSharedManager(ctx);
@@ -3067,48 +3064,52 @@ public class GridCacheProcessor extends GridProcessorAdapter {
                 walMgr = new FileWriteAheadLogManager(ctx);
         }
 
-        WalStateManager walStateMgr = new WalStateManager(ctx);
+        if (CU.isCdcEnabled(ctx.config()) && !ctx.clientNode()) {
+            cdcMgr = ctx.plugins().createComponent(CdcManager.class);
+
+            if (cdcMgr != null) {
+                if (ctx.config().getDataStorageConfiguration().getWalMode() != WALMode.LOG_ONLY) {
+                    U.warn(log, "Custom CdcManager is only supported for WALMode.LOG_ONLY. CdcManager configuration will be ignored.");
+
+                    cdcMgr = null;
+                }
+
+                if (!IgniteSystemProperties.getBoolean(IGNITE_WAL_MMAP, true)) {
+                    U.warn(log, "Custom CdcManager is only supported for IGNITE_WAL_MMAP=true. CdcManager configuration will be ignored.");
+
+                    cdcMgr = null;
+                }
+            }
+
+            if (cdcMgr == null)
+                cdcMgr = new CdcUtilityActiveCdcManager();
+        }
 
         IgniteSnapshotManager snapshotMgr = ctx.plugins().createComponent(IgniteSnapshotManager.class);
 
         if (snapshotMgr == null)
             snapshotMgr = new IgniteSnapshotManager(ctx);
 
-        CacheObjectTransformerManager transMgr = ctx.plugins().createComponent(CacheObjectTransformerManager.class);
-
-        GridCacheIoManager ioMgr = new GridCacheIoManager();
-        CacheAffinitySharedManager topMgr = new CacheAffinitySharedManager();
-        GridCacheSharedTtlCleanupManager ttl = new GridCacheSharedTtlCleanupManager();
-        PartitionsEvictManager evict = new PartitionsEvictManager();
-
-        CacheJtaManagerAdapter jta = JTA.createOptional();
-
-        MvccCachingManager mvccCachingMgr = new MvccCachingManager();
-
-        CacheDiagnosticManager diagnosticMgr = new CacheDiagnosticManager();
-
-        return new GridCacheSharedContext(
-            kernalCtx,
-            tm,
-            verMgr,
-            mvccMgr,
-            pageStoreMgr,
-            walMgr,
-            walStateMgr,
-            dbMgr,
-            snapshotMgr,
-            depMgr,
-            exchMgr,
-            topMgr,
-            ioMgr,
-            ttl,
-            evict,
-            jta,
-            storeSesLsnrs,
-            mvccCachingMgr,
-            diagnosticMgr,
-            transMgr
-        );
+        return GridCacheSharedContext.builder()
+            .setTxManager(new IgniteTxManager())
+            .setMvccManager(new GridCacheMvccManager())
+            .setVersionManager(new GridCacheVersionManager())
+            .setDeploymentManager(new GridCacheDeploymentManager())
+            .setPartitionExchangeManager(new GridCachePartitionExchangeManager())
+            .setDatabaseManager(dbMgr)
+            .setPageStoreManager(pageStoreMgr)
+            .setWalManager(walMgr)
+            .setWalStateManager(new WalStateManager(ctx))
+            .setSnapshotManager(snapshotMgr)
+            .setIoManager(new GridCacheIoManager())
+            .setAffinityManager(new CacheAffinitySharedManager())
+            .setTtlCleanupManager(new GridCacheSharedTtlCleanupManager())
+            .setPartitionsEvictManager(new PartitionsEvictManager())
+            .setJtaManager(JTA.createOptional())
+            .setMvccCachingManager(new MvccCachingManager())
+            .setDiagnosticManager(new CacheDiagnosticManager())
+            .setCdcManager(cdcMgr)
+            .build(kernalCtx, storeSesLsnrs);
     }
 
     /** {@inheritDoc} */

@@ -575,7 +575,7 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
 
         SqlFieldsQuery sqlFieldsQry = qryCtx.unwrap(SqlFieldsQuery.class);
 
-        return sqlFieldsQry != null ? sqlFieldsQry.isLocal() : null;
+        return sqlFieldsQry != null ? F.asList(sqlFieldsQry.isLocal(), sqlFieldsQry.isEnforceJoinOrder()) : null;
     }
 
     /** */
@@ -600,6 +600,7 @@ public class CalciteQueryProcessor extends GridProcessorAdapter implements Query
             params,
             qryCtx,
             fldsQry != null && fldsQry.isLocal(),
+            fldsQry != null && fldsQry.isEnforceJoinOrder(),
             fldsQry != null ? fldsQry.getPartitions() : null,
             exchangeSvc,
             (q, ex) -> qryReg.unregister(q.id(), ex),

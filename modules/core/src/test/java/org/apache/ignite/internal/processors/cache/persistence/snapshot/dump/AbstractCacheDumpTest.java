@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache.persistence.snapshot.dump;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -64,6 +65,7 @@ import org.apache.ignite.platform.model.Key;
 import org.apache.ignite.platform.model.Role;
 import org.apache.ignite.platform.model.User;
 import org.apache.ignite.platform.model.Value;
+import org.apache.ignite.spi.encryption.keystore.KeystoreEncryptionSpi;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.jetbrains.annotations.Nullable;
@@ -73,9 +75,11 @@ import org.junit.runners.Parameterized;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 import static org.apache.ignite.dump.DumpReaderConfiguration.DFLT_THREAD_CNT;
 import static org.apache.ignite.dump.DumpReaderConfiguration.DFLT_TIMEOUT;
+import static org.apache.ignite.internal.encryption.AbstractEncryptionTest.KEYSTORE_PASSWORD;
+import static org.apache.ignite.internal.encryption.AbstractEncryptionTest.KEYSTORE_PATH;
 import static org.apache.ignite.internal.processors.cache.GridCacheUtils.UTILITY_CACHE_NAME;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.SNP_RUNNING_DIR_KEY;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.dump.CreateDumpFutureTask.toLong;
+import static org.apache.ignite.internal.util.IgniteUtils.toLong;
 import static org.apache.ignite.platform.model.AccessLevel.SUPER;
 import static org.apache.ignite.testframework.GridTestUtils.runAsync;
 import static org.apache.ignite.testframework.GridTestUtils.waitForCondition;
@@ -127,7 +131,11 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
     public boolean onlyPrimary;
 
     /** */
-    @Parameterized.Parameters(name = "nodes={0},backups={1},persistence={2},mode={3},useDataStreamer={4},onlyPrimary={5}")
+    @Parameterized.Parameter(6)
+    public boolean encrypted;
+
+    /** */
+    @Parameterized.Parameters(name = "nodes={0},backups={1},persistence={2},mode={3},useDataStreamer={4},onlyPrimary={5},encrypted={6}")
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
 
@@ -140,11 +148,11 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
                                 continue;
 
                             if (backups > 0) {
-                                params.add(new Object[]{nodes, backups, persistence, mode, useDataStreamer, false});
-                                params.add(new Object[]{nodes, backups, persistence, mode, useDataStreamer, true});
+                                params.add(new Object[]{nodes, backups, persistence, mode, useDataStreamer, false, false});
+                                params.add(new Object[]{nodes, backups, persistence, mode, useDataStreamer, true, false});
                             }
                             else
-                                params.add(new Object[]{nodes, backups, persistence, mode, useDataStreamer, false});
+                                params.add(new Object[]{nodes, backups, persistence, mode, useDataStreamer, false, false});
                         }
                     }
 
@@ -173,7 +181,7 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
-        return super.getConfiguration(igniteInstanceName)
+        IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName)
             .setSnapshotThreadPoolSize(snpPoolSz)
             .setDataStorageConfiguration(new DataStorageConfiguration()
                 .setDefaultDataRegionConfiguration(new DataRegionConfiguration().setPersistenceEnabled(persistence)))
@@ -199,6 +207,11 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
                     .setWriteSynchronizationMode(FULL_SYNC)
                     .setAffinity(new RendezvousAffinityFunction().setPartitions(20))
             );
+
+        if (encrypted)
+            cfg.setEncryptionSpi(encryptionSpi());
+
+        return cfg;
     }
 
     /** */
@@ -279,14 +292,38 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
 
     /** */
     protected void checkDump(IgniteEx ign) throws Exception {
-        checkDump(ign, DMP_NAME);
+        checkDump(ign, DMP_NAME, false);
     }
 
     /** */
-    void checkDump(IgniteEx ign, String name) throws Exception {
+    void checkDump(IgniteEx ign, String name, boolean expectedComprParts) throws Exception {
+        checkDump(ign,
+            name,
+            null,
+            new HashSet<>(Arrays.asList(DEFAULT_CACHE_NAME, CACHE_0, CACHE_1)),
+            KEYS_CNT + (onlyPrimary ? 0 : KEYS_CNT * backups),
+            2 * (KEYS_CNT + (onlyPrimary ? 0 : KEYS_CNT * backups)),
+            KEYS_CNT,
+            false,
+            expectedComprParts
+        );
+    }
+
+    /** */
+    void checkDump(
+        IgniteEx ign,
+        String name,
+        String[] cacheGroupNames,
+        Set<String> expectedFoundCaches,
+        int expectedDfltDumpSz,
+        int expectedGrpDumpSz,
+        int expectedCount,
+        boolean skipCopies,
+        boolean expectedComprParts
+    ) throws Exception {
         checkDumpWithCommand(ign, name, backups);
 
-        if (persistence)
+        if (persistence && !ign.context().clientNode())
             assertNull(ign.context().cache().context().database().metaStorage().read(SNP_RUNNING_DIR_KEY));
 
         Dump dump = dump(ign, name);
@@ -300,6 +337,7 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
             assertEquals(name, meta.snapshotName());
             assertTrue(meta.dump());
             assertFalse(meta.cacheGroupIds().contains(CU.cacheId(UTILITY_CACHE_NAME)));
+            assertEquals(expectedComprParts, meta.compressPartitions());
         }
 
         List<String> nodesDirs = dump.nodesDirectories();
@@ -318,41 +356,26 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
             @Override public void onCacheConfigs(Iterator<StoredCacheData> caches) {
                 super.onCacheConfigs(caches);
 
-                boolean[] cachesFound = new boolean[3];
+                Set<String> cachesFound = new HashSet<>();
 
                 caches.forEachRemaining(data -> {
-                    if (data.config().getName().equals(DEFAULT_CACHE_NAME)) {
-                        assertFalse(cachesFound[0]);
-                        cachesFound[0] = true;
+                    String cacheName = data.config().getName();
 
-                        assertEquals(DEFAULT_CACHE_NAME, data.config().getName());
-                        assertFalse(data.sql());
-                        assertTrue(data.queryEntities().isEmpty());
-                    }
-                    else if (data.config().getName().equals(CACHE_0)) {
-                        assertFalse(cachesFound[1]);
-                        cachesFound[1] = true;
+                    assertTrue(cachesFound.add(cacheName));
 
+                    assertEquals(cacheName, data.configuration().getName());
+
+                    assertFalse(data.sql());
+
+                    assertTrue(data.queryEntities().isEmpty());
+
+                    if (cacheName.startsWith("cache-"))
                         assertEquals(GRP, data.configuration().getGroupName());
-                        assertEquals(CACHE_0, data.configuration().getName());
-                        assertFalse(data.sql());
-                        assertTrue(data.queryEntities().isEmpty());
-                    }
-                    else if (data.config().getName().equals(CACHE_1)) {
-                        assertFalse(cachesFound[2]);
-                        cachesFound[2] = true;
-
-                        assertEquals(GRP, data.configuration().getGroupName());
-                        assertEquals(CACHE_1, data.configuration().getName());
-                        assertFalse(data.sql());
-                        assertTrue(data.queryEntities().isEmpty());
-                    }
-                    else
+                    else if (!cacheName.equals(DEFAULT_CACHE_NAME))
                         throw new IgniteException("Unknown cache");
                 });
 
-                for (boolean found : cachesFound)
-                    assertTrue(found);
+                assertEquals(expectedFoundCaches, cachesFound);
             }
 
             @Override public void onPartition(int grp, int part, Iterator<DumpEntry> iter) {
@@ -375,6 +398,8 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
                         DumpEntry e = iter.next();
 
                         assertNotNull(e);
+                        assertNotNull(e.version());
+                        assertNull(e.version().otherClusterVersion());
 
                         if (e.cacheId() == CU.cacheId(CACHE_0))
                             assertEquals(USER_FACTORY.apply((Integer)e.key()), e.value());
@@ -389,10 +414,10 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
             @Override public void check() {
                 super.check();
 
-                assertEquals(KEYS_CNT + (onlyPrimary ? 0 : KEYS_CNT * backups), dfltDumpSz);
-                assertEquals(2 * (KEYS_CNT + (onlyPrimary ? 0 : KEYS_CNT * backups)), grpDumpSz);
+                assertEquals(expectedDfltDumpSz, dfltDumpSz);
+                assertEquals(expectedGrpDumpSz, grpDumpSz);
 
-                IntStream.range(0, KEYS_CNT).forEach(key -> assertTrue(keys.contains(key)));
+                IntStream.range(0, expectedCount).forEach(key -> assertTrue(keys.contains(key)));
             }
         };
 
@@ -402,7 +427,10 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
                 cnsmr,
                 DFLT_THREAD_CNT, DFLT_TIMEOUT,
                 true,
-                false
+                false,
+                cacheGroupNames,
+                skipCopies,
+                null
             ),
             log
         ).run();
@@ -417,6 +445,8 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
         Integer key = (Integer)e.key();
 
         assertEquals(key, e.value());
+        assertNotNull(e.version());
+        assertNull(e.version().otherClusterVersion());
     }
 
     /** */
@@ -527,7 +557,23 @@ public abstract class AbstractCacheDumpTest extends GridCommonAbstractTest {
 
     /** */
     void createDump(IgniteEx ign, String name, @Nullable Collection<String> cacheGroupNames) {
-        ign.context().cache().context().snapshotMgr().createSnapshot(name, null, cacheGroupNames, false, onlyPrimary, true).get();
+        createDump(ign, name, cacheGroupNames, false);
+    }
+
+    /** */
+    void createDump(IgniteEx ign, String name, @Nullable Collection<String> cacheGroupNames, boolean comprParts) {
+        ign.context().cache().context().snapshotMgr()
+            .createSnapshot(name, null, cacheGroupNames, false, onlyPrimary, true, comprParts, encrypted).get();
+    }
+
+    /** */
+    public static KeystoreEncryptionSpi encryptionSpi() {
+        KeystoreEncryptionSpi encSpi = new KeystoreEncryptionSpi();
+
+        encSpi.setKeyStorePath(KEYSTORE_PATH);
+        encSpi.setKeyStorePassword(KEYSTORE_PASSWORD.toCharArray());
+
+        return encSpi;
     }
 
     /** */

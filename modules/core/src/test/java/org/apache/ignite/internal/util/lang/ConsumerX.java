@@ -15,31 +15,26 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.cache.transform;
+package org.apache.ignite.internal.util.lang;
 
-import java.nio.ByteBuffer;
-import org.apache.ignite.internal.binary.GridBinaryMarshaller;
-import org.apache.ignite.internal.processors.cache.GridCacheSharedManager;
+import java.util.function.Consumer;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Provides cache object's bytes transformation (eg. encryption, compression, etc).
+ * Represents an operation that accepts a single input argument and returns
+ * no result. Unlike most other functional interfaces,
+ * {@code ConsumerX} is expected to operate via side-effects.
+ *
+ * Also it is able to throw {@link Exception} unlike {@link Consumer}.
+ *
+ * @param <T> The type of the input to the operation.
  */
-public interface CacheObjectTransformerManager extends GridCacheSharedManager {
+@FunctionalInterface
+public interface ConsumerX<T> {
     /**
-     * Transforms the data.
+     * Performs this operation on the given argument.
      *
-     * @param original Original data.
-     * @return Transformed data (started with {@link GridBinaryMarshaller#TRANSFORMED} when restorable)
-     * or {@code null} when transformation is not possible/suitable.
+     * @param t the input argument.
      */
-    public @Nullable ByteBuffer transform(ByteBuffer original);
-
-    /**
-     * Restores the data.
-     *
-     * @param transformed Transformed data.
-     * @return Restored data.
-     */
-    public ByteBuffer restore(ByteBuffer transformed);
+    public void accept(@Nullable T t) throws Exception;
 }

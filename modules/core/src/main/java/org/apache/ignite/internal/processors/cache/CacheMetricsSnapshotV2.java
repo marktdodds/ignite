@@ -332,6 +332,9 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
     /** Number of keys processed during index rebuilding. */
     private long idxRebuildKeyProcessed;
 
+    /** The number of local node partitions that remain to be processed to complete indexing. */
+    private int idxBuildPartitionsLeftCount;
+
     /** A map of Node ID -> cache size on that node */
     private final Map<UUID, Long> distributedCacheSizes = new HashMap<>();
 
@@ -448,6 +451,8 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
 
         idxRebuildInProgress = m.isIndexRebuildInProgress();
         idxRebuildKeyProcessed = m.getIndexRebuildKeysProcessed();
+
+        idxBuildPartitionsLeftCount = m.getIndexBuildPartitionsLeftCount();
 
 		distributedCacheSizes.put(m.getLocalNodeId(), m.getCacheSize());
     }
@@ -596,6 +601,7 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
             keysToRebalanceLeft += e.getKeysToRebalanceLeft();
             rebalancingBytesRate += e.getRebalancingBytesRate();
             rebalancingKeysRate += e.getRebalancingKeysRate();
+            idxBuildPartitionsLeftCount += e.getIndexBuildPartitionsLeftCount();
 
 			distributedCacheSizes.put(entry.getKey(), e.getCacheSize());
         }
@@ -1090,6 +1096,11 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
     }
 
     /** {@inheritDoc} */
+    @Override public int getIndexBuildPartitionsLeftCount() {
+        return idxBuildPartitionsLeftCount;
+    }
+
+    /** {@inheritDoc} */
     @Override public String toString() {
         return S.toString(CacheMetricsSnapshotV2.class, this);
     }
@@ -1171,6 +1182,7 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
         out.writeInt(size);
         out.writeInt(keySize);
         U.writeLongString(out, txKeyCollisions);
+        out.writeInt(idxBuildPartitionsLeftCount);
     }
 
     /** {@inheritDoc} */
@@ -1250,5 +1262,6 @@ public class CacheMetricsSnapshotV2 extends IgniteDataTransferObject implements 
         size = in.readInt();
         keySize = in.readInt();
         txKeyCollisions = U.readLongString(in);
+        idxBuildPartitionsLeftCount = in.readInt();
     }
 }
