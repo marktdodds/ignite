@@ -424,25 +424,33 @@ public class CorrelatedNestedLoopJoinNode<Row> extends AbstractNode<Row> {
                 return;
             }
 
-            if (joinType == JoinRelType.LEFT && !F.isEmpty(leftInBuf)) {
-                if (rightEmptyRow == null)
-                    rightEmptyRow = handler.factory(context().getTypeFactory(), rightSource().rowType()).create();
+            try {
+                state = State.IN_LOOP;
 
-                int notMatchedIdx = leftMatched.nextClearBit(0);
+                if (joinType == JoinRelType.LEFT && !F.isEmpty(leftInBuf)) {
+                    if (rightEmptyRow == null)
+                        rightEmptyRow = handler.factory(context().getTypeFactory(), rightSource().rowType()).create();
 
-                while (requested > 0 && notMatchedIdx < leftInBuf.size()) {
-                    downstream().push(handler.concat(leftInBuf.get(notMatchedIdx), rightEmptyRow));
+                    int notMatchedIdx = leftMatched.nextClearBit(0);
 
-                    requested--;
+                    while (requested > 0 && notMatchedIdx < leftInBuf.size()) {
 
-                    leftMatched.set(notMatchedIdx);
+                        requested--;
 
-                    notMatchedIdx = leftMatched.nextClearBit(notMatchedIdx + 1);
+                        downstream().push(handler.concat(leftInBuf.get(notMatchedIdx), rightEmptyRow));
+
+                        leftMatched.set(notMatchedIdx);
+
+                        notMatchedIdx = leftMatched.nextClearBit(notMatchedIdx + 1);
+                    }
+
+                    if (requested == 0 && notMatchedIdx < leftInBuf.size())
+                        return; // Some rows required to be pushed, wait for request.
                 }
-
-                if (requested == 0 && notMatchedIdx < leftInBuf.size())
-                    return; // Some rows required to be pushed, wait for request.
+            } finally {
+                state = State.IDLE;
             }
+
 
             if (waitingLeft == 0) {
                 rightInBuf = null;
