@@ -115,8 +115,10 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
     @Override
     public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right,
                      JoinRelType joinType, boolean semiJoinDone) {
+        RelCollation leftCol = left.getTraitSet().getCollation();
+        RelCollation rightCol = right.getTraitSet().getCollation();
         return new IgniteMergeJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType,
-            left.getTraitSet().getCollation(), right.getTraitSet().getCollation());
+            leftCol != null ? leftCol : leftCollation, rightCol != null ? rightCol : rightCollation);
     }
 
     /** {@inheritDoc} */

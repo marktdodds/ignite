@@ -69,7 +69,7 @@ public class MakeHashJoinCachableRule extends RelRule<MakeHashJoinCachableRule.C
         RexNode newJoinCondition = new RexInputReplacer(TypeUtils.combinedRowType(Commons.typeFactory(), join.getLeft().getRowType(), newScan.getRowType()), replacements).go(join.getCondition());
 
         call.transformTo(new CacheableIgniteHashJoin(join.getCluster(), join.getTraitSet(), join.getLeft(), newScan,
-            newJoinCondition, join.getVariablesSet(), join.getJoinType(), scan.pushUpPredicate(), scanColumnFilter));
+            newJoinCondition, join.getVariablesSet(), join.getJoinType(), scan.pushUpPredicate(), scanColumnFilter, scan.getRowType()));
     }
 
     @Override

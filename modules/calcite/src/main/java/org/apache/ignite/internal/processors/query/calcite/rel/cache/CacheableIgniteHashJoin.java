@@ -28,17 +28,19 @@ import java.util.Set;
 public class CacheableIgniteHashJoin extends IgniteHashJoin {
 
     private HashJoinNode cachedExecutionNode;
+    private @Nullable RelDataType rightTableDerivedType;
 
     public CacheableIgniteHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
                                    RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
-        super(cluster, traitSet, left, right, condition, variablesSet, joinType, null, null);
+        this(cluster, traitSet, left, right, condition, variablesSet, joinType, null, null, null);
     }
 
 
     public CacheableIgniteHashJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
                                    RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType,
-                                   RexNode rightFilterCondition, ImmutableBitSet rightRequiredColumns) {
+                                   RexNode rightFilterCondition, ImmutableBitSet rightRequiredColumns, RelDataType rightTableDerivedType) {
         super(cluster, traitSet, left, right, condition, variablesSet, joinType, rightFilterCondition, rightRequiredColumns);
+        this.rightTableDerivedType = rightTableDerivedType;
     }
 
     /**  */
@@ -70,7 +72,7 @@ public class CacheableIgniteHashJoin extends IgniteHashJoin {
     @Override
     public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
                      boolean semiJoinDone) {
-        return new CacheableIgniteHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType, getRightFilterCondition(), getRightRequiredColumns());
+        return new CacheableIgniteHashJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType, getRightFilterCondition(), getRightRequiredColumns(), rightTableDerivedType);
     }
 
     /** {@inheritDoc} */
@@ -83,13 +85,12 @@ public class CacheableIgniteHashJoin extends IgniteHashJoin {
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new CacheableIgniteHashJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
-            getVariablesSet(), getJoinType(), getRightFilterCondition(), getRightRequiredColumns());
+            getVariablesSet(), getJoinType(), getRightFilterCondition(), getRightRequiredColumns(), rightTableDerivedType);
     }
 
     /** {@inheritDoc} */
     @Override
     public RelDataType deriveRowType() {
-        RelDataType rightTableDerivedType = right.getTable().unwrap(IgniteTable.class).getRowType(Commons.typeFactory(getCluster()), getRightRequiredColumns());
         return SqlValidatorUtil.deriveJoinRowType(left.getRowType(), rightTableDerivedType, joinType, getCluster().getTypeFactory(), null, getSystemFieldList());
     }
 

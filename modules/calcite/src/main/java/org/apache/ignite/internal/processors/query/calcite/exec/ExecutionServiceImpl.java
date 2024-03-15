@@ -798,7 +798,8 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
                 InternalDebug.alwaysLog("Old plan:\n", originalRoot.explain(), "Cache-aware Plan:\n", cacheInjectedRoot.explain());
             } catch (Exception | AssertionError err) {
                 // Couldnt generate a cache aware plan so proceed with the normal one.
-                err.printStackTrace();
+                log.debug(this.getClass().getName(), "Cache injection failed: " + err.getMessage());
+//                err.printStackTrace();
             }
         }
 
