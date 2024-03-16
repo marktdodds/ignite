@@ -123,7 +123,7 @@ public class PlannerHelper {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
             }
 
-            InternalDebug.alwaysLog(igniteRel.explain());
+            InternalDebug.log(igniteRel.explain());
 
             if (!root.isRefTrivial()) {
                 final List<RexNode> projects = new ArrayList<>();

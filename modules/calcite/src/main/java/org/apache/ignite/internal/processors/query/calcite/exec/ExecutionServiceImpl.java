@@ -795,7 +795,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
                 cacheInjectedRoot.getCluster().setMetadataQuerySupplier(RelMetadataQueryEx::create);
                 cacheInjectedRoot = pctx.planner().transform(PlannerPhase.CACHE_OPTIMIZATION, cacheInjectedRoot.getTraitSet(), cacheInjectedRoot);
                 cacheInjectedRoot = new CachedRelInjector(resultCache()).visit(cacheInjectedRoot);
-                InternalDebug.alwaysLog("Old plan:\n", originalRoot.explain(), "Cache-aware Plan:\n", cacheInjectedRoot.explain());
+                InternalDebug.log("Old plan:\n", originalRoot.explain(), "Cache-aware Plan:\n", cacheInjectedRoot.explain());
             } catch (Exception | AssertionError err) {
                 // Couldnt generate a cache aware plan so proceed with the normal one.
                 log.debug(this.getClass().getName(), "Cache injection failed: " + err.getMessage());

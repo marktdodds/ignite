@@ -1,12 +1,14 @@
 package org.apache.ignite.util;
 
+import org.apache.ignite.IgniteSystemProperties;
+
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
 
 public class InternalDebug {
 
-    public static Object saveAny;
+    private static boolean SHOULD_LOG = IgniteSystemProperties.getBoolean("MD_QUERY_LOGGING", false);
 
     private static final Map<String, InternalDebug> map = new HashMap<>();
 
@@ -78,7 +80,7 @@ public class InternalDebug {
     }
 
     public static void log(String ...message) {
-        if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
+        if (SHOULD_LOG) {
             alwaysLog(message);
         }
     }
