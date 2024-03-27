@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import javax.swing.ImageIcon;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteState;
@@ -318,6 +319,10 @@ public final class CommandLineStartup {
      * @param args Command line arguments.
      */
     public static void main(String[] args) {
+        X.println("Ignite Research Edition (Mark Dodds)...");
+        for (String i : System.getenv().keySet().stream().filter(s -> s.startsWith("MD_")).collect(Collectors.toSet())) {
+            X.println("[Research Setting] " + i + ": " + System.getenv(i));
+        }
         X.println("Ignite Research Edition (Mark Dodds)...");
         if (!QUITE) {
             X.println("Ignite Command Line Startup, ver. " + ACK_VER_STR);
