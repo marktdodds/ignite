@@ -40,6 +40,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintDefinition;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintUtils;
 import org.apache.ignite.internal.processors.query.calcite.rel.AbstractIndexScan;
@@ -118,6 +119,11 @@ public class PlannerHelper {
 
             if (sqlNode.isA(ImmutableSet.of(SqlKind.INSERT, SqlKind.UPDATE, SqlKind.MERGE)))
                 igniteRel = new FixDependentModifyNodeShuttle().visit(igniteRel);
+
+            if (IgniteSystemProperties.getBoolean("MD_LOG_EXECUTION_PLANS", false)) {
+                System.out.println(sqlNode.toString().replace("\r", "").replace("\n", " "));
+                System.out.println(igniteRel.explain());
+            }
 
             return igniteRel;
         }
