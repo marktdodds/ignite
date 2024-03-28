@@ -40,6 +40,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintDefinition;
 import org.apache.ignite.internal.processors.query.calcite.hint.HintUtils;
 import org.apache.ignite.internal.processors.query.calcite.metadata.RelMetadataQueryEx;
@@ -123,8 +124,10 @@ public class PlannerHelper {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
             }
 
-            InternalDebug.alwaysLog(sqlNode.toString().replace("\r", "").replace("\n", " "));
-            InternalDebug.alwaysLog(igniteRel.explain());
+            if (IgniteSystemProperties.getBoolean("MD_LOG_EXECUTION_PLANS", false)) {
+                InternalDebug.alwaysLog(sqlNode.toString().replace("\r", "").replace("\n", " "));
+                InternalDebug.alwaysLog(igniteRel.explain());
+            }
 
             if (!root.isRefTrivial()) {
                 final List<RexNode> projects = new ArrayList<>();
