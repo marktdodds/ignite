@@ -123,7 +123,8 @@ public class PlannerHelper {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
             }
 
-            InternalDebug.log(igniteRel.explain());
+            InternalDebug.alwaysLog(sqlNode.toString().replace("\r", "").replace("\n", " "));
+            InternalDebug.alwaysLog(igniteRel.explain());
 
             if (!root.isRefTrivial()) {
                 final List<RexNode> projects = new ArrayList<>();
