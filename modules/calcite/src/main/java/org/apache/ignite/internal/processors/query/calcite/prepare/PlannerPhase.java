@@ -43,6 +43,7 @@ import org.apache.calcite.tools.Program;
 import org.apache.calcite.tools.RuleSet;
 import org.apache.calcite.tools.RuleSets;
 import org.apache.calcite.util.Optionality;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
@@ -395,13 +396,14 @@ public enum PlannerPhase {
                 LogicalOrToUnionRule.INSTANCE
             ));
 
-            if ("true".equalsIgnoreCase(System.getenv("MD_USE_HJ")))
+
+            if (IgniteSystemProperties.getBoolean("MD_USE_HJ", false))
                 rules.add(HashJoinConverterRule.INSTANCE);
 
-            if ("true".equalsIgnoreCase(System.getenv("MD_USE_DIST_NLJ")))
+            if (IgniteSystemProperties.getBoolean("MD_USE_DIST_NLJ", false))
                 rules.add(DistributedNestedLoopJoinConverterRule.INSTANCE);
 
-            if ("true".equalsIgnoreCase(System.getenv("MD_USE_DIST_MJ")))
+            if (IgniteSystemProperties.getBoolean("MD_USE_DIST_MJ", false))
                 rules.add(DistributedMergeJoinConverterRule.INSTANCE);
 
             rules.addAll(

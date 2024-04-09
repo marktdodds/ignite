@@ -27,6 +27,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.calcite.CalciteQueryEngineConfiguration;
@@ -600,7 +601,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
         List<Fragment> fragments = execPlan.fragments();
 
-        if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
+        if (IgniteSystemProperties.getBoolean( "MD_QUERY_LOGGING", false)) {
             fragments.forEach(f -> {
                 System.out.printf("Node IDS: %s, Fragment Id: %s, fragment: %s\n\n", f.mapping().nodeIds(), f.fragmentId(), f.serialized());
             });
@@ -780,7 +781,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
     private IgniteRel runCacheInjection(IgniteRel originalRoot, ExecutionContext<Row> ectx) {
         IgniteRel cacheInjectedRoot = originalRoot;
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_USE_RESULT_CACHING"))) {
+        if (IgniteSystemProperties.getBoolean("MD_USE_RESULT_CACHING", false)) {
 
             PlanningContext pctx = PlanningContext.builder()
                 .parentContext(ectx)

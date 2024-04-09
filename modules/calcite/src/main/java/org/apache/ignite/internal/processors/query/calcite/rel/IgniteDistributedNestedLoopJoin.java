@@ -33,6 +33,7 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
@@ -87,7 +88,7 @@ public class IgniteDistributedNestedLoopJoin extends AbstractIgniteJoin {
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DIST_NLJ"))) return costFactory.makeZeroCost();
+        if (IgniteSystemProperties.getBoolean("MD_FORCE_DIST_NLJ", false)) return costFactory.makeZeroCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))

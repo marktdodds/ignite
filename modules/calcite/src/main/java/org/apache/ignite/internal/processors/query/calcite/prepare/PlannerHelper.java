@@ -101,7 +101,7 @@ public class PlannerHelper {
 
             rel = planner.transform(PlannerPhase.HEP_PROJECT_PUSH_DOWN, rel.getTraitSet(), rel);
 
-            if ("true".equalsIgnoreCase(System.getenv("MD_NEW_QUERY_PLANNER"))) {
+            if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
 
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(true);
 
@@ -118,7 +118,7 @@ public class PlannerHelper {
 
             IgniteRel igniteRel;
 
-            if ("true".equalsIgnoreCase(System.getenv("MD_NEW_QUERY_PLANNER"))) {
+            if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
                 igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
             } else {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);

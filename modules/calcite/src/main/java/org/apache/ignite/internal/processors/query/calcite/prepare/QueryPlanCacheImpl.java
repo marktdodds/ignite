@@ -20,6 +20,8 @@ package org.apache.ignite.internal.processors.query.calcite.prepare;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
@@ -68,7 +70,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
 
     /** {@inheritDoc} */
     @Override public QueryPlan queryPlan(CacheKey key, Supplier<QueryPlan> planSupplier) {
-        if ("true".equalsIgnoreCase(System.getenv("MD_DISABLE_QUERY_CACHE"))) {
+        if (IgniteSystemProperties.getBoolean("MD_DISABLE_QUERY_CACHE", false)) {
             InternalDebug.log(">>> Cache Disabled");
             cache.remove(key);
         }
@@ -80,7 +82,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     /** {@inheritDoc} */
     @Override public QueryPlan queryPlan(CacheKey key) {
         QueryPlan plan = cache.get(key);
-        if ("true".equalsIgnoreCase(System.getenv("MD_DISABLE_QUERY_CACHE"))) {
+        if (IgniteSystemProperties.getBoolean("MD_DISABLE_QUERY_CACHE", false)) {
             InternalDebug.log(">>> Cache Disabled");
             return null;
         }

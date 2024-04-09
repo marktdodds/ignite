@@ -48,6 +48,7 @@ import org.apache.calcite.rex.RexVisitor;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
@@ -109,7 +110,7 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DIST_HJ"))) return costFactory.makeZeroCost();
+        if (IgniteSystemProperties.getBoolean("MD_FORCE_DIST_HJ", false)) return costFactory.makeZeroCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))

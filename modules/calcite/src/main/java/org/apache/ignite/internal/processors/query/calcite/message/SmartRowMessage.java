@@ -3,6 +3,7 @@ package org.apache.ignite.internal.processors.query.calcite.message;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
@@ -164,7 +165,7 @@ public class SmartRowMessage implements ValueMessage {
      * @param rowType The SQL Record row type
      */
     public static int[] marshallableTypeFromRowType(RelDataType rowType) {
-        if (!"true".equalsIgnoreCase(System.getenv("MD_SMART_MARSHALLING"))) return EMPTY;
+        if (!IgniteSystemProperties.getBoolean("MD_SMART_MARSHALLING", false)) return EMPTY;
 
         int[] marshallableType = new int[rowType.getFieldCount()];
         int i = 0;

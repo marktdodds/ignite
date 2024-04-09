@@ -33,6 +33,7 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.externalize.RelInputEx;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
@@ -103,7 +104,7 @@ public class IgniteDistributedMergeJoin extends IgniteMergeJoin {
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
-        if ("true".equalsIgnoreCase(System.getenv("MD_FORCE_DIST_MJ"))) return costFactory.makeZeroCost();
+        if (IgniteSystemProperties.getBoolean("MD_FORCE_DIST_MJ", false)) return costFactory.makeZeroCost();
 
         double leftCount = mq.getRowCount(getLeft());
         if (Double.isInfinite(leftCount))

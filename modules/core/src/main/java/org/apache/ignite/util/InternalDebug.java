@@ -42,7 +42,7 @@ public class InternalDebug {
         this.logTimer(msg, str, false);
     }
     public void logTimer(String msg, PrintStream str, boolean force) {
-        if (!"true".equalsIgnoreCase(System.getenv("MD_QUERY_LOGGING")) && !force) return;
+        if (!IgniteSystemProperties.getBoolean("MD_QUERY_LOGGING", false) && !force) return;
         if (startTime == 0L) return;
         long time = System.currentTimeMillis();
         str.printf("[TIMER LOG || %s] %s: %sms\n", name, msg, time - startTime);
@@ -66,7 +66,7 @@ public class InternalDebug {
     }
 
     public void logCounter(String msg, PrintStream str) {
-        if ("true".equals(System.getenv("MD_QUERY_LOGGING"))) {
+        if (IgniteSystemProperties.getBoolean("MD_QUERY_LOGGING", false)) {
             str.printf("[TIMER LOG || %s] %s: %s\n", name, msg, getCounter());
         }
     }
