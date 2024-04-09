@@ -28,37 +28,43 @@ import org.apache.calcite.rel.metadata.ReflectiveRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.util.BuiltInMethod;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 
-/** */
+/**  */
 @SuppressWarnings("unused") // actually all methods are used by runtime generated classes
 public class IgniteMdNonCumulativeCost implements MetadataHandler<BuiltInMetadata.NonCumulativeCost> {
-    /** */
+    /**  */
     public static final RelMetadataProvider SOURCE = ReflectiveRelMetadataProvider.reflectiveSource(
         BuiltInMethod.NON_CUMULATIVE_COST.method, new IgniteMdNonCumulativeCost());
 
-    /** */
-    @Override public MetadataDef<BuiltInMetadata.NonCumulativeCost> getDef() {
+    /**  */
+    @Override
+    public MetadataDef<BuiltInMetadata.NonCumulativeCost> getDef() {
         return BuiltInMetadata.NonCumulativeCost.DEF;
     }
 
-    /** */
+    /**  */
     public RelOptCost getNonCumulativeCost(RelNode rel, RelMetadataQuery mq) {
         return rel.computeSelfCost(rel.getCluster().getPlanner(), mq);
     }
 
-    /** Computes the cost of a LogicalJoin. This method gets the base costs and adds the memory size of the
+    /**
+     * Computes the cost of a LogicalJoin. This method gets the base costs and adds the memory size of the
      * left input. The ending result is a plan that has the smaller relation in the left input. It is used
      * in the physical optimization plan that assumes the right relation is larger (for determining join
      * distribution plans). This works in tandem with the JoinCommute rule to explore permutations of join
-     * inputs here without expanding the search space to the point Calcite times out. */
+     * inputs here without expanding the search space to the point Calcite times out.
+     */
     public RelOptCost getNonCumulativeCost(LogicalJoin rel, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) rel.getCluster().getPlanner().getCostFactory();
-        return rel.computeSelfCost(rel.getCluster().getPlanner(), mq)
-            .plus(costFactory.makeCost(0, 0, 0, mq.getRowCount(rel.getLeft()), 0));
+        RelOptCost cost = rel.computeSelfCost(rel.getCluster().getPlanner(), mq);
+        return IgniteSystemProperties.getBoolean("MD_LOGICAL_JOIN_COSTER", false) ?
+            cost.plus(costFactory.makeCost(0, 0, 0, mq.getRowCount(rel.getLeft()), 0))
+            : cost;
     }
 
-    /** */
+    /**  */
     public RelOptCost getNonCumulativeCost(RelSubset rel, RelMetadataQuery mq) {
         return mq.getNonCumulativeCost(rel.getBestOrOriginal());
     }
