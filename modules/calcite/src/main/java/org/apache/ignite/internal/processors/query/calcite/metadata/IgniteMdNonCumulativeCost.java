@@ -20,7 +20,24 @@ package org.apache.ignite.internal.processors.query.calcite.metadata;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelShuttle;
+import org.apache.calcite.rel.RelVisitor;
+import org.apache.calcite.rel.core.TableFunctionScan;
+import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalCalc;
+import org.apache.calcite.rel.logical.LogicalCorrelate;
+import org.apache.calcite.rel.logical.LogicalExchange;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalIntersect;
 import org.apache.calcite.rel.logical.LogicalJoin;
+import org.apache.calcite.rel.logical.LogicalMatch;
+import org.apache.calcite.rel.logical.LogicalMinus;
+import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.logical.LogicalTableModify;
+import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.metadata.BuiltInMetadata;
 import org.apache.calcite.rel.metadata.MetadataDef;
 import org.apache.calcite.rel.metadata.MetadataHandler;
@@ -30,6 +47,9 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.util.BuiltInMethod;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
+import org.apache.ignite.internal.processors.query.calcite.prepare.IgniteRelShuttle;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRelVisitor;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**  */
 @SuppressWarnings("unused") // actually all methods are used by runtime generated classes
@@ -58,15 +78,14 @@ public class IgniteMdNonCumulativeCost implements MetadataHandler<BuiltInMetadat
      */
     public RelOptCost getNonCumulativeCost(LogicalJoin rel, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory) rel.getCluster().getPlanner().getCostFactory();
-        RelOptCost cost = rel.computeSelfCost(rel.getCluster().getPlanner(), mq);
-        return IgniteSystemProperties.getBoolean("MD_LOGICAL_JOIN_COSTER", false) ?
-            cost.plus(costFactory.makeCost(0, 0, 0, mq.getRowCount(rel.getLeft()), 0))
-            : cost;
+        double rows = mq.getRowCount(rel);
+        return costFactory.makeCost(rows, rows, 0);
     }
 
     /**  */
     public RelOptCost getNonCumulativeCost(RelSubset rel, RelMetadataQuery mq) {
         return mq.getNonCumulativeCost(rel.getBestOrOriginal());
     }
+
 
 }
