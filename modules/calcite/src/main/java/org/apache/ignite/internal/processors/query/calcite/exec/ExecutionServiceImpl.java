@@ -759,6 +759,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         }
 
         Runnable onClose = () -> {
+            if (IgniteSystemProperties.getBoolean("MD_LOG_QUERY_STATS", false)) System.out.println("COMPLETED: " + qry.queryInfo(null));
             if (perfStatProc.enabled()) {
                 perfStatProc.queryRowsProcessed(
                     GridCacheQueryType.SQL_FIELDS,
