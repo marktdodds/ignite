@@ -36,6 +36,7 @@ import org.apache.calcite.rel.hint.Hintable;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.util.Pair;
@@ -122,7 +123,7 @@ public class PlannerHelper {
 
             if (IgniteSystemProperties.getBoolean("MD_LOG_EXECUTION_PLANS", false)) {
                 System.out.println(sqlNode.toString().replace("\r", "").replace("\n", " "));
-                System.out.println(igniteRel.explain());
+                System.out.println(RelOptUtil.toString(igniteRel, SqlExplainLevel.ALL_ATTRIBUTES));
             }
 
             return igniteRel;
