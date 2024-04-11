@@ -35,6 +35,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
+import org.apache.ignite.util.InternalDebug;
 
 /**
  * Relational expression that combines two relational expressions according to
@@ -93,7 +94,7 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
         return costFactory.makeCost(rows,
-            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0);
+            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0, rows * rows);
     }
 
     /** {@inheritDoc} */
