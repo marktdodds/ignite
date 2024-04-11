@@ -37,6 +37,9 @@ public class IgniteCostFactory implements RelOptCostFactory {
     /** Network weight. */
     private final double networkWeight;
 
+    /** Network weight. */
+    private final double latencyWeight;
+
     /**
      * Cerates a factory with default weights equal to 1.
      */
@@ -45,12 +48,13 @@ public class IgniteCostFactory implements RelOptCostFactory {
         memoryWeight = 1;
         ioWeight = 1;
         networkWeight = 1;
+        latencyWeight = 1;
     }
 
     /**
      * Cerates a factory with provided weights. Each weight should be non negative value.
      */
-    public IgniteCostFactory(double cpuWeight, double memoryWeight, double ioWeight, double networkWeight) {
+    public IgniteCostFactory(double cpuWeight, double memoryWeight, double ioWeight, double networkWeight, double latencyWeight) {
         if (cpuWeight < 0 || memoryWeight < 0 || ioWeight < 0 || networkWeight < 0)
             throw new IllegalArgumentException("Weight should be non negative: cpu=" + cpuWeight +
                 ", memory=" + memoryWeight + ", io=" + ioWeight + ", network=" + networkWeight);
@@ -59,6 +63,7 @@ public class IgniteCostFactory implements RelOptCostFactory {
         this.memoryWeight = memoryWeight;
         this.ioWeight = ioWeight;
         this.networkWeight = networkWeight;
+        this.latencyWeight = latencyWeight;
     }
 
     /** {@inheritDoc} */
@@ -76,7 +81,11 @@ public class IgniteCostFactory implements RelOptCostFactory {
      * @param network Amount of consumed Network.
      */
     public RelOptCost makeCost(double rowCount, double cpu, double io, double memory, double network) {
-        return new IgniteCost(rowCount, cpu * cpuWeight, memory * memoryWeight, io * ioWeight, network * networkWeight);
+        return makeCost(rowCount, cpu, io, memory, network, 0);
+    }
+
+    public RelOptCost makeCost(double rowCount, double cpu, double io, double memory, double network, double latency) {
+        return new IgniteCost(rowCount, cpu * cpuWeight, memory * memoryWeight, io * ioWeight, network * networkWeight, latency * latencyWeight);
     }
 
     /** {@inheritDoc} */

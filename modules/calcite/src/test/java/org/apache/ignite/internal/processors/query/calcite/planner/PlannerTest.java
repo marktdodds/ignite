@@ -820,7 +820,7 @@ public class PlannerTest extends AbstractPlannerTest {
             .parentContext(BaseQueryContext.builder()
                 .frameworkConfig(newConfigBuilder(FRAMEWORK_CONFIG)
                     .defaultSchema(schema)
-                    .costFactory(new IgniteCostFactory(1, 100, 1, 1))
+                    .costFactory(new IgniteCostFactory(1, 100, 1, 1, 0))
                     .build())
                 .logger(log)
                 .build()

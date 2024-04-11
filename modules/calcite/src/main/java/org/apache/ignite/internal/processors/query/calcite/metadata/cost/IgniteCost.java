@@ -57,13 +57,14 @@ public class IgniteCost implements RelOptCost {
     public static final double BROADCAST_DISTRIBUTION_PENALTY = 5;
 
     /** */
-    static final IgniteCost ZERO = new IgniteCost(0, 0, 0, 0, 0);
+    static final IgniteCost ZERO = new IgniteCost(0, 0, 0, 0, 0, 0);
 
     /** */
-    static final IgniteCost TINY = new IgniteCost(1, 1, 1, 1, 1);
+    static final IgniteCost TINY = new IgniteCost(1, 1, 1, 1, 1, 0);
 
     /** */
     static final IgniteCost HUGE = new IgniteCost(
+        Double.MAX_VALUE,
         Double.MAX_VALUE,
         Double.MAX_VALUE,
         Double.MAX_VALUE,
@@ -73,6 +74,7 @@ public class IgniteCost implements RelOptCost {
 
     /** */
     static final IgniteCost INFINITY = new IgniteCost(
+        Double.POSITIVE_INFINITY,
         Double.POSITIVE_INFINITY,
         Double.POSITIVE_INFINITY,
         Double.POSITIVE_INFINITY,
@@ -95,6 +97,9 @@ public class IgniteCost implements RelOptCost {
     /** Amount of Network points. */
     private final double network;
 
+    /** Amount of Network points. */
+    private final double latency;
+
     /**
      * @param rowCount Row count.
      * @param cpu Cpu.
@@ -102,12 +107,13 @@ public class IgniteCost implements RelOptCost {
      * @param io Io.
      * @param network Network.
      */
-    IgniteCost(double rowCount, double cpu, double memory, double io, double network) {
+    IgniteCost(double rowCount, double cpu, double memory, double io, double network, double latency) {
         this.rowCount = rowCount;
         this.cpu = cpu;
         this.memory = memory;
         this.io = io;
         this.network = network;
+        this.latency = latency;
     }
 
     /** {@inheritDoc} */
@@ -139,6 +145,13 @@ public class IgniteCost implements RelOptCost {
         return network;
     }
 
+    /**
+     * @return Latency penalty induced.
+     */
+    public double getLatency() {
+        return latency;
+    }
+
     /** {@inheritDoc} */
     @Override public boolean isInfinite() {
         return this == INFINITY
@@ -146,12 +159,13 @@ public class IgniteCost implements RelOptCost {
             || cpu == Double.POSITIVE_INFINITY
             || memory == Double.POSITIVE_INFINITY
             || io == Double.POSITIVE_INFINITY
+            || latency == Double.POSITIVE_INFINITY
             || network == Double.POSITIVE_INFINITY;
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return Objects.hash(rowCount, cpu, io, memory, network);
+        return Objects.hash(rowCount, cpu, io, memory, network, latency);
     }
 
     /** {@inheritDoc} */
@@ -162,6 +176,7 @@ public class IgniteCost implements RelOptCost {
             && cpu == ((IgniteCost)cost).cpu
             && memory == ((IgniteCost)cost).memory
             && io == ((IgniteCost)cost).io
+            && latency == ((IgniteCost)cost).latency
             && network == ((IgniteCost)cost).network);
     }
 
@@ -172,6 +187,7 @@ public class IgniteCost implements RelOptCost {
             && Math.abs(cpu - ((IgniteCost)cost).cpu) < RelOptUtil.EPSILON
             && Math.abs(memory - ((IgniteCost)cost).memory) < RelOptUtil.EPSILON
             && Math.abs(io - ((IgniteCost)cost).io) < RelOptUtil.EPSILON
+            && Math.abs(latency - ((IgniteCost)cost).latency) < RelOptUtil.EPSILON
             && Math.abs(network - ((IgniteCost)cost).network) < RelOptUtil.EPSILON);
     }
 
@@ -179,14 +195,14 @@ public class IgniteCost implements RelOptCost {
     @Override public boolean isLe(RelOptCost cost) {
         IgniteCost other = (IgniteCost)cost;
 
-        return this == cost || (cpu + memory + io + network) <= (other.cpu + other.memory + other.io + other.network);
+        return this == cost || (cpu + memory + io + network + latency) <= (other.cpu + other.memory + other.io + other.network + other.latency);
     }
 
     /** {@inheritDoc} */
     @Override public boolean isLt(RelOptCost cost) {
         IgniteCost other = (IgniteCost)cost;
 
-        return this != cost && (cpu + memory + io + network) < (other.cpu + other.memory + other.io + other.network);
+        return this != cost && (cpu + memory + io + network + latency) < (other.cpu + other.memory + other.io + other.network + other.latency);
     }
 
     /** {@inheritDoc} */
@@ -198,7 +214,8 @@ public class IgniteCost implements RelOptCost {
             cpu + other.cpu,
             memory + other.memory,
             io + other.io,
-            network + other.network
+            network + other.network,
+            latency + other.latency
         );
     }
 
@@ -211,7 +228,8 @@ public class IgniteCost implements RelOptCost {
             cpu - other.cpu,
             memory - other.memory,
             io - other.io,
-            network - other.network
+            network - other.network,
+            latency - other.latency
         );
     }
 
@@ -222,7 +240,8 @@ public class IgniteCost implements RelOptCost {
             cpu * factor,
             memory * factor,
             io * factor,
-            network * factor
+            network * factor,
+            latency * factor
         );
     }
 
