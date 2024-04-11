@@ -34,8 +34,10 @@ import org.apache.calcite.rel.core.Spool;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.hint.Hintable;
 import org.apache.calcite.rel.hint.RelHint;
+import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.util.Pair;
@@ -66,6 +68,15 @@ public class PlannerHelper {
      */
     private PlannerHelper() {
 
+    }
+
+    private static int maxNestedJoins(RelNode rel) {
+        if (rel instanceof LogicalJoin) return 1 + Math.max(maxNestedJoins(rel.getInput(0)), maxNestedJoins(rel.getInput(1)));
+        int max = 0;
+        for (RelNode child : rel.getInputs()) {
+            max = Math.max(max, maxNestedJoins(child));
+        }
+        return max;
     }
 
     /**
@@ -105,7 +116,9 @@ public class PlannerHelper {
 
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(true);
 
+                System.out.println(RelOptUtil.toString(rel, SqlExplainLevel.ALL_ATTRIBUTES));
                 rel = planner.transform(PlannerPhase.LOGICAL_OPTIMIZATIONS, rel.getTraitSet(), rel);
+                System.out.println(RelOptUtil.toString(rel, SqlExplainLevel.ALL_ATTRIBUTES));
 
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(false);
             }
@@ -119,14 +132,15 @@ public class PlannerHelper {
             IgniteRel igniteRel;
 
             if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
-                igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
+                if (maxNestedJoins(rel) > 3) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
+                else igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
             } else {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
             }
 
             if (IgniteSystemProperties.getBoolean("MD_LOG_EXECUTION_PLANS", false)) {
                 InternalDebug.alwaysLog(sqlNode.toString().replace("\r", "").replace("\n", " "));
-                InternalDebug.alwaysLog(igniteRel.explain());
+                InternalDebug.alwaysLog(RelOptUtil.toString(igniteRel, SqlExplainLevel.ALL_ATTRIBUTES));
             }
 
             if (!root.isRefTrivial()) {

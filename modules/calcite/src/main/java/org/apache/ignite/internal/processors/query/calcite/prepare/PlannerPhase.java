@@ -286,7 +286,7 @@ public enum PlannerPhase {
     /**
      * =====================================
      * =====================================
-     *            New stuff below
+     * New stuff below
      * =====================================
      * =====================================
      */
@@ -302,12 +302,15 @@ public enum PlannerPhase {
                     JoinPushThroughJoinRule.Config.LEFT
                         .withOperandFor(LogicalJoin.class).toRule(),
 
+                    JoinPushThroughJoinRule.Config.RIGHT
+                        .withOperandFor(LogicalJoin.class).toRule(),
+
                     JoinPushExpressionsRule.Config.DEFAULT
                         .withOperandFor(LogicalJoin.class).toRule(),
 
                     JoinConditionPushRule.JoinConditionPushRuleConfig.DEFAULT
                         .withOperandSupplier(b -> b.operand(LogicalJoin.class)
-                        .anyInputs()).toRule(),
+                            .anyInputs()).toRule(),
 
                     CoreRules.JOIN_COMMUTE,
                     CoreRules.JOIN_COMMUTE_OUTER,
@@ -378,11 +381,28 @@ public enum PlannerPhase {
         }
     },
 
+    PHYSICAL_OPTIMIZATION_NO_JOIN("Physical optimizations and conversions phase without JOIN optimizations") {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Program getProgram(PlanningContext ctx) {
+            return cbo(PHYSICAL_OPTIMIZATION.getRules(ctx, false));
+        }
+    },
+
     /**  */
     PHYSICAL_OPTIMIZATION("Physical optimizations and conversions phase") {
         /** {@inheritDoc} */
         @Override
         public RuleSet getRules(PlanningContext ctx) {
+            return getRules(ctx, true);
+        }
+
+        @Override
+        public RuleSet getRules(PlanningContext ctx, boolean useJoinOptimizations) {
             List<RelOptRule> rules = new ArrayList<>(Arrays.asList(
 
                 ExposeIndexRule.INSTANCE,
@@ -394,8 +414,13 @@ public enum PlannerPhase {
                 FilterSpoolMergeToHashIndexSpoolRule.INSTANCE,
 
                 LogicalOrToUnionRule.INSTANCE
+
             ));
 
+            if (useJoinOptimizations) {
+                rules.add(JoinPushThroughJoinRule.Config.LEFT.withOperandFor(LogicalJoin.class).toRule());
+                rules.add(CoreRules.JOIN_COMMUTE_OUTER);
+            }
 
             if (IgniteSystemProperties.getBoolean("MD_USE_HJ", false))
                 rules.add(HashJoinConverterRule.INSTANCE);
@@ -405,6 +430,7 @@ public enum PlannerPhase {
 
             if (IgniteSystemProperties.getBoolean("MD_USE_DIST_MJ", false))
                 rules.add(DistributedMergeJoinConverterRule.INSTANCE);
+
 
             rules.addAll(
                 Arrays.asList(
@@ -478,6 +504,17 @@ public enum PlannerPhase {
      * @return Rule set.
      */
     public abstract RuleSet getRules(PlanningContext ctx);
+
+    /**
+     * An optional implementation allowing the filtering of join specific rules.
+     *
+     * @param ctx                  Planner context
+     * @param useJoinOptimizations Allow join optimization rules
+     * @return Rule set
+     */
+    public RuleSet getRules(PlanningContext ctx, boolean useJoinOptimizations) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns a program, calculated on the basis of query, planner context planner phase and rules set.
