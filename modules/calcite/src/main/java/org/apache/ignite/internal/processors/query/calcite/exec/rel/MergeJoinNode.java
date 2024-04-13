@@ -738,10 +738,12 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
                     }
                     else {
                         if (left == null) {
-                            if (waitingLeft == NOT_WAITING)
+                            if (waitingLeft == NOT_WAITING) {
                                 rightMaterialization = null;
+                                drainMaterialization = false;
+                            }
 
-                            break;
+                            continue;
                         }
 
                         if (rightIdx >= rightMaterialization.size()) {
