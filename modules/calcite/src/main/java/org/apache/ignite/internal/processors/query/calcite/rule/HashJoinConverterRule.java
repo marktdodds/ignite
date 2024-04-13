@@ -26,7 +26,23 @@ import org.apache.calcite.rel.PhysicalNode;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexCorrelVariable;
+import org.apache.calcite.rex.RexDynamicParam;
+import org.apache.calcite.rex.RexFieldAccess;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexLocalRef;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
+import org.apache.calcite.rex.RexPatternFieldRef;
+import org.apache.calcite.rex.RexRangeRef;
+import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.rex.RexTableInputRef;
+import org.apache.calcite.rex.RexVisitor;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.internal.processors.query.calcite.exec.exp.IgniteRexVisitor;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 
@@ -44,17 +60,16 @@ public class HashJoinConverterRule extends AbstractIgniteConverterRule<LogicalJo
         super(LogicalJoin.class, "HashJoinConverter");
     }
 
+
     @Override
     public boolean matches(RelOptRuleCall call) {
         LogicalJoin oper = call.rel(0);
-        return oper.getCondition().isA(SqlKind.EQUALS);
+        return oper.getCondition().accept(new ConditionValidator());
     }
 
     /** {@inheritDoc} */
     @Override
     protected PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalJoin rel) {
-        assert rel.getCondition().isA(SqlKind.EQUALS);
-
         RelOptCluster cluster = rel.getCluster();
         RelTraitSet leftInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
         RelTraitSet rightInTraits = cluster.traitSetOf(IgniteConvention.INSTANCE);
@@ -65,4 +80,41 @@ public class HashJoinConverterRule extends AbstractIgniteConverterRule<LogicalJo
 
         return new IgniteHashJoin(cluster, outTraits, left, right, rel.getCondition(), rel.getVariablesSet(), rel.getJoinType());
     }
+
+    private static class ConditionValidator extends IgniteRexVisitor<Boolean> {
+
+        @Override
+        public Boolean visitInputRef(RexInputRef inputRef) {
+            return true;
+        }
+
+        @Override
+        public Boolean visitLocalRef(RexLocalRef localRef) {
+            return true;
+        }
+
+        @Override
+        public Boolean visitCall(RexCall call) {
+            switch (call.getKind()) {
+                case AND:
+                    if (!IgniteSystemProperties.getBoolean("MD_ALLOW_AND_HJ", false)) return false;
+                case EQUALS:
+                    assert call.getOperands().size() == 2;
+                    return call.getOperands().get(0).accept(this) && call.getOperands().get(1).accept(this);
+                default:
+                    return false;
+            }
+        }
+
+        /* ======================
+         * The rest are TBD
+         * ======================
+         */
+
+        @Override
+        public Boolean defaultValue() {
+            return false;
+        }
+    }
+
 }

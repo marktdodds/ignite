@@ -2,19 +2,9 @@ package org.apache.ignite.internal.processors.query.calcite.exec.exp;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexCorrelVariable;
-import org.apache.calcite.rex.RexDynamicParam;
-import org.apache.calcite.rex.RexFieldAccess;
 import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexLocalRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexOver;
-import org.apache.calcite.rex.RexPatternFieldRef;
-import org.apache.calcite.rex.RexRangeRef;
-import org.apache.calcite.rex.RexSubQuery;
-import org.apache.calcite.rex.RexTableInputRef;
-import org.apache.calcite.rex.RexVisitor;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 
 /**
@@ -22,7 +12,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
  * Used in the HashJoin
  */
 
-public class RexHasher<Row> implements RexVisitor<Object> {
+public class RexHasher<Row> extends IgniteRexVisitor<Object> {
 
     private final RowHandler<Row> handler;
     private final int offset;
@@ -68,59 +58,20 @@ public class RexHasher<Row> implements RexVisitor<Object> {
                 if (left != null) key.add(left);
                 if (right != null) key.add(right);
             case AND:
-//                assert node.ope
-            default:
-                return null;
+                assert node.getOperands().size() == 2;
+                for (RexNode op : node.getOperands()) {
+                    op.accept(this);
+                }
         }
+        return null;
     }
 
     /* ======================
      * The rest are TBD
      * ======================
      */
-
     @Override
-    public Object visitLiteral(RexLiteral rexLiteral) {
-        return null;
-    }
-
-    @Override
-    public Object visitOver(RexOver rexOver) {
-        return null;
-    }
-
-    @Override
-    public Object visitCorrelVariable(RexCorrelVariable rexCorrelVariable) {
-        return null;
-    }
-
-    @Override
-    public Object visitDynamicParam(RexDynamicParam rexDynamicParam) {
-        return null;
-    }
-
-    @Override
-    public Object visitRangeRef(RexRangeRef rexRangeRef) {
-        return null;
-    }
-
-    @Override
-    public Object visitFieldAccess(RexFieldAccess rexFieldAccess) {
-        return null;
-    }
-
-    @Override
-    public Boolean visitSubQuery(RexSubQuery rexSubQuery) {
-        return null;
-    }
-
-    @Override
-    public Object visitTableInputRef(RexTableInputRef rexTableInputRef) {
-        return null;
-    }
-
-    @Override
-    public Object visitPatternFieldRef(RexPatternFieldRef rexPatternFieldRef) {
-        return null;
+    public Object defaultValue() {
+        throw new UnsupportedOperationException();
     }
 }
