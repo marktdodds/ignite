@@ -28,6 +28,7 @@ import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistribution;
@@ -77,13 +78,20 @@ public class IgniteExchange extends Exchange implements IgniteRel {
         double rowCount = mq.getRowCount(getInput());
         double bytesPerRow = getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
         double totalBytes = rowCount * bytesPerRow;
+        double latencyPenalty = rowCount;
 
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 
-        if (IgniteDistributions.broadcast().equals(distribution))
+        if (IgniteDistributions.broadcast().equals(distribution)) {
             totalBytes *= IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
+            latencyPenalty = Math.pow(rowCount, 1.5);
+        }
 
-        return costFactory.makeCost(rowCount, rowCount * IgniteCost.ROW_PASS_THROUGH_COST, 0, 0, totalBytes);
+        if (!IgniteSystemProperties.getBoolean("MD_USE_BROADCAST_LATENCY_PENALTY", false)) {
+            latencyPenalty = 0;
+        }
+
+        return costFactory.makeCost(rowCount, rowCount * IgniteCost.ROW_PASS_THROUGH_COST, 0, 0, totalBytes, latencyPenalty);
     }
 
     /** {@inheritDoc} */
