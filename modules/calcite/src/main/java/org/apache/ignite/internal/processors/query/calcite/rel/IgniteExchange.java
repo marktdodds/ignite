@@ -26,6 +26,7 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Exchange;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.ignite.IgniteSystemProperties;
@@ -102,5 +103,11 @@ public class IgniteExchange extends Exchange implements IgniteRel {
     /** {@inheritDoc} */
     @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteExchange(cluster, getTraitSet(), sole(inputs), distribution);
+    }
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw)
+            .item("type", getRowType());
     }
 }
