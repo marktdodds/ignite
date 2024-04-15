@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec.rel;
 
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -71,12 +72,17 @@ public abstract class AbstractNode<Row> implements Node<Row> {
     /** */
     private List<Node<Row>> sources;
 
+    private long startTime;
+
+    private BitSet sourcesRemaining = new BitSet();
+
     /**
      * @param ctx Execution context.
      */
     protected AbstractNode(ExecutionContext<Row> ctx, RelDataType rowType) {
         this.ctx = ctx;
         this.rowType = rowType;
+        this.startTime = System.currentTimeMillis();
     }
 
     /**
@@ -106,9 +112,36 @@ public abstract class AbstractNode<Row> implements Node<Row> {
     /** {@inheritDoc} */
     @Override public void register(List<Node<Row>> sources) {
         this.sources = sources;
+        sourcesRemaining.set(0, sources.size());
 
-        for (int i = 0; i < sources.size(); i++)
-            sources.get(i).onRegister(requestDownstream(i));
+        for (int i = 0; i < sources.size(); i++) {
+            Downstream<Row> dr = requestDownstream(i);
+            int finalI = i;
+            sources.get(i).onRegister(
+                IgniteSystemProperties.getBoolean("MD_EXECUTION_WATERFALL", false) ?
+                new Downstream<Row>() {
+                    @Override
+                    public void push(Row row) throws Exception {
+                        if (sourcesRemaining.get(finalI)) {
+                            System.out.println("[" + dr.getClass().getName() + "#ds" + finalI + "] TTFR: " + (System.currentTimeMillis() - startTime) + "ms");
+                            sourcesRemaining.clear(finalI);
+                        }
+                        dr.push(row);
+                    }
+
+                    @Override
+                    public void end() throws Exception {
+                        System.out.println("[" + dr.getClass().getName() + "#ds" + finalI + "] TTC: " + (System.currentTimeMillis() - startTime) + "ms");
+                        dr.end();
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        dr.onError(e);
+                    }
+                } : dr
+            );
+        }
     }
 
     /** {@inheritDoc} */
