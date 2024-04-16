@@ -58,6 +58,7 @@ import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationConfiguration;
 import org.apache.ignite.spi.deployment.local.LocalDeploymentSpi;
+import org.apache.ignite.util.PropertyServer;
 import org.jetbrains.annotations.Nullable;
 
 import static java.lang.String.format;
@@ -323,7 +324,6 @@ public final class CommandLineStartup {
         for (String i : System.getenv().keySet().stream().filter(s -> s.startsWith("MD_")).collect(Collectors.toSet())) {
             X.println("[Research Setting] " + i + ": " + System.getenv(i));
         }
-        X.println("Ignite Research Edition (Mark Dodds)...");
         if (!QUITE) {
             X.println("Ignite Command Line Startup, ver. " + ACK_VER_STR);
             X.println(COPYRIGHT);
@@ -347,6 +347,11 @@ public final class CommandLineStartup {
 
         if (args.length > 0 && args[0].charAt(0) == '-')
             exit("Invalid arguments: " + args[0], true, -1);
+
+        if (IgniteSystemProperties.getBoolean("MD_USE_PROPERTY_SERVER", false)) {
+            new Thread(new PropertyServer()).start();
+            X.println("Property server started on port 19871");
+        }
 
         String cfg = null;
 
