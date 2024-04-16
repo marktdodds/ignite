@@ -473,6 +473,20 @@ public enum PlannerPhase {
         }
     },
 
+    CLEANUP("Cleanup phase that runs iterative rules to prune useless nodes") {
+        @Override
+        public RuleSet getRules(PlanningContext ctx) {
+            return ctx.rules(RuleSets.ofList(
+                ProjectMergeRule.Config.DEFAULT.toRule()
+            ));
+        }
+
+        @Override
+        public Program getProgram(PlanningContext ctx) {
+            return hep(getRules(ctx));
+        }
+    },
+
     CACHE_OPTIMIZATION("Cache-aware Optimizations") {
         @Override
         public RuleSet getRules(PlanningContext ctx) {
