@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
@@ -81,11 +82,15 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
 
     /** {@inheritDoc} */
     @Override public QueryPlan queryPlan(CacheKey key) {
-        QueryPlan plan = cache.get(key);
+        if (IgniteSystemProperties.getBoolean("MD_CLEAR_QUERY_CACHE")) {
+            cache.clear();
+            log.info("Query cache cleared!");
+        }
         if (IgniteSystemProperties.getBoolean("MD_DISABLE_QUERY_CACHE", false)) {
             InternalDebug.log(">>> Cache Disabled");
             return null;
         }
+        QueryPlan plan = cache.get(key);
         return plan != null ? plan.copy() : null;
     }
 

@@ -119,4 +119,11 @@ public class GridBoundedConcurrentLinkedHashMap<K, V> extends ConcurrentLinkedHa
     @Override public String toString() {
         return S.toString(GridBoundedConcurrentLinkedHashMap.class, this, "entrySet", keySet());
     }
+
+    @Override
+    public void clear() {
+        for (K key : this.keySet()) {
+            remove(key);
+        }
+    }
 }
