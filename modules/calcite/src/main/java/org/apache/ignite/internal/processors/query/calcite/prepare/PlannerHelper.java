@@ -132,9 +132,8 @@ public class PlannerHelper {
             IgniteRel igniteRel;
 
             if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
-                if (maxNestedJoins(rel) > 3) rel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
-                else rel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
-                igniteRel = planner.transform(PlannerPhase.CLEANUP, rel.getTraitSet(), rel);
+                if (maxNestedJoins(rel) > 3) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
+                else igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
             } else {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
             }

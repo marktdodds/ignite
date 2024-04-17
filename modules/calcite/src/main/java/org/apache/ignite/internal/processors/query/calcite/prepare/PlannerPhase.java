@@ -48,12 +48,12 @@ import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedMergeJoinConverterRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.HashAggregateConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexCountRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexMinMaxRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
@@ -413,7 +413,8 @@ public enum PlannerPhase {
                 FilterSpoolMergeToSortedIndexSpoolRule.INSTANCE,
                 FilterSpoolMergeToHashIndexSpoolRule.INSTANCE,
 
-                LogicalOrToUnionRule.INSTANCE
+                LogicalOrToUnionRule.INSTANCE,
+                CoreRules.PROJECT_MERGE
 
             ));
 
@@ -470,20 +471,6 @@ public enum PlannerPhase {
         @Override
         public Program getProgram(PlanningContext ctx) {
             return cbo(getRules(ctx));
-        }
-    },
-
-    CLEANUP("Cleanup phase that runs iterative rules to prune useless nodes") {
-        @Override
-        public RuleSet getRules(PlanningContext ctx) {
-            return ctx.rules(RuleSets.ofList(
-                ProjectMergeRule.Config.DEFAULT.toRule()
-            ));
-        }
-
-        @Override
-        public Program getProgram(PlanningContext ctx) {
-            return hep(getRules(ctx));
         }
     },
 
