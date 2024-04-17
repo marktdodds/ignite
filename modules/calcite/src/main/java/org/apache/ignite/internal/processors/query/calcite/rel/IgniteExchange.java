@@ -79,17 +79,14 @@ public class IgniteExchange extends Exchange implements IgniteRel {
         double rowCount = mq.getRowCount(getInput());
         double bytesPerRow = getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
         double totalBytes = rowCount * bytesPerRow;
-        double latencyPenalty = rowCount;
+        double latencyPenalty = 0;
 
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 
         if (IgniteDistributions.broadcast().equals(distribution)) {
             totalBytes *= IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
-            latencyPenalty = Math.pow(rowCount, 1.5);
-        }
-
-        if (!IgniteSystemProperties.getBoolean("MD_USE_BROADCAST_LATENCY_PENALTY", false)) {
-            latencyPenalty = 0;
+            double exponent = IgniteSystemProperties.getDouble("MD_BROADCAST_LATENCY_PENALTY", 0);
+            if (exponent >= 1) latencyPenalty = Math.pow(rowCount, exponent);
         }
 
         return costFactory.makeCost(rowCount, rowCount * IgniteCost.ROW_PASS_THROUGH_COST, 0, 0, totalBytes, latencyPenalty);
