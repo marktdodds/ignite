@@ -30,6 +30,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHasher;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.ObjectSizeCalculator;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -100,6 +101,10 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     /**  */
     protected boolean inLoop;
     private Runnable onComplete;
+
+    int rCount = 0;
+    int lCount = 0;
+    int pushed = 0;
 
     /**
      * @param ctx          Execution context.
@@ -206,7 +211,10 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         leftInBuf.add(row);
 
-        join();
+        lCount++;
+
+        if (waitingLeft == 0)
+            join();
     }
 
     /**  */
@@ -225,6 +233,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         nodeMemoryTracker.onRowAdded(row);
         hashMapMemoryUsed += hashKey.getByteSize(hashMapKeySizeCalculator) + hashMapEntrySizeCalculator.sizeOf(row);
 
+        rCount++;
+
         if (waitingRight == 0)
             rightSource().request(waitingRight = IN_BUFFER_SIZE);
     }
@@ -238,6 +248,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         waitingLeft = NOT_WAITING;
 
+        InternalDebug.alwaysLog("Left source count: " + lCount);
+
         join();
     }
 
@@ -250,11 +262,14 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         waitingRight = NOT_WAITING;
 
+        InternalDebug.alwaysLog("Right source count: " + rCount);
+
         join();
     }
 
     /** Push downstream or into the outbox if full */
     protected void pushDownstream(Row r) throws Exception {
+        pushed++;
         if (requested > 0) {
             requested--;
             downstream().push(r);
@@ -264,7 +279,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     }
 
     protected void emptyOutbox() throws Exception {
-        checkState();
         while (requested > 0 && !outboxBuf.isEmpty()) {
             requested--;
             downstream().push(outboxBuf.remove());
@@ -297,6 +311,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
      */
     protected void joinCompleted() throws Exception {
         requested = 0;
+        InternalDebug.alwaysLog("Pushed: " + pushed);
         downstream().end();
         if (onComplete != null) new Thread(onComplete).start();
     }
@@ -406,6 +421,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         @Override
         protected void join() throws Exception {
             if (waitingRight == NOT_WAITING) {
+                checkState();
                 inLoop = true;
                 try {
 
@@ -414,7 +430,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                     // Try and process new rows
                     while (requested > 0 && !leftInBuf.isEmpty()) {
-                        checkState();
                         Row left = leftInBuf.remove();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
@@ -472,6 +487,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         protected void join() throws Exception {
             if (waitingRight == NOT_WAITING) {
                 // Do the join
+                checkState();
                 inLoop = true;
                 try {
 
@@ -479,8 +495,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                     while (requested > 0 && !leftInBuf.isEmpty()) {
                         Row left = leftInBuf.remove();
-
-                        checkState();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.get(hashId);
@@ -544,6 +558,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         @Override
         protected void join() throws Exception {
             if (waitingRight == NOT_WAITING) {
+                checkState();
                 inLoop = true;
 
                 // Setup the set for non-matched elements
@@ -557,7 +572,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                     while (requested > 0 && !leftInBuf.isEmpty()) {
 
-                        checkState();
                         Row left = leftInBuf.remove();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
@@ -651,13 +665,13 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                     rightNotMatched.addAll(rightMaterialized.keySet());
                 }
 
+                checkState();
                 inLoop = true;
                 try {
 
                     emptyOutbox();
                     while (requested > 0 && !leftInBuf.isEmpty()) {
 
-                        checkState();
                         Row left = leftInBuf.remove();
 
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
@@ -734,9 +748,12 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         @Override
         protected void join() throws Exception {
             if (waitingRight == NOT_WAITING) {
+                checkState();
+
+                emptyOutbox();
+
                 while (requested > 0 && !leftInBuf.isEmpty()) {
 
-                    checkState();
 
                     Row left = leftInBuf.remove();
                     RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
@@ -782,11 +799,14 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         @Override
         protected void join() throws Exception {
             if (waitingRight == NOT_WAITING) {
+                checkState();
                 inLoop = true;
                 try {
+
+                    emptyOutbox();
+
                     while (requested > 0 && !leftInBuf.isEmpty()) {
 
-                        checkState();
                         Row left = leftInBuf.remove();
                         RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);

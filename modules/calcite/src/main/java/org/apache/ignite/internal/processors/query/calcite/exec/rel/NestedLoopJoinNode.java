@@ -156,7 +156,8 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         leftInBuf.add(row);
 
-        join();
+        if (waitingLeft == 0)
+            join();
     }
 
     /** */
