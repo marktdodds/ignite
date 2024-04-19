@@ -30,7 +30,6 @@ import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHasher;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.ObjectSizeCalculator;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
-import org.apache.ignite.util.InternalDebug;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -101,10 +100,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     /**  */
     protected boolean inLoop;
     private Runnable onComplete;
-
-    int rCount = 0;
-    int lCount = 0;
-    int pushed = 0;
 
     /**
      * @param ctx          Execution context.
@@ -211,8 +206,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         leftInBuf.add(row);
 
-        lCount++;
-
         if (waitingLeft == 0)
             join();
     }
@@ -233,8 +226,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         nodeMemoryTracker.onRowAdded(row);
         hashMapMemoryUsed += hashKey.getByteSize(hashMapKeySizeCalculator) + hashMapEntrySizeCalculator.sizeOf(row);
 
-        rCount++;
-
         if (waitingRight == 0)
             rightSource().request(waitingRight = IN_BUFFER_SIZE);
     }
@@ -248,7 +239,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         waitingLeft = NOT_WAITING;
 
-        InternalDebug.alwaysLog("Left source count: " + lCount);
 
         join();
     }
@@ -262,14 +252,11 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         waitingRight = NOT_WAITING;
 
-        InternalDebug.alwaysLog("Right source count: " + rCount);
-
         join();
     }
 
     /** Push downstream or into the outbox if full */
     protected void pushDownstream(Row r) throws Exception {
-        pushed++;
         if (requested > 0) {
             requested--;
             downstream().push(r);
@@ -311,7 +298,6 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
      */
     protected void joinCompleted() throws Exception {
         requested = 0;
-        InternalDebug.alwaysLog("Pushed: " + pushed);
         downstream().end();
         if (onComplete != null) new Thread(onComplete).start();
     }
