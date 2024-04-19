@@ -17,25 +17,33 @@
 
 package org.apache.ignite.internal.processors.query.calcite.rel;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
+import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
+import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
+import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
-import org.apache.ignite.util.InternalDebug;
 
 /**
  * Relational expression that combines two relational expressions according to
@@ -49,22 +57,22 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
     /**
      * Creates a Join.
      *
-     * @param cluster          Cluster
-     * @param traitSet         Trait set
-     * @param left             Left input
-     * @param right            Right input
-     * @param condition        Join condition
-     * @param joinType         Join type
-     * @param variablesSet     Set variables that are set by the
-     *                         LHS and used by the RHS and are not available to
-     *                         nodes above this Join in the tree
+     * @param cluster      Cluster
+     * @param traitSet     Trait set
+     * @param left         Left input
+     * @param right        Right input
+     * @param condition    Join condition
+     * @param joinType     Join type
+     * @param variablesSet Set variables that are set by the
+     *                     LHS and used by the RHS and are not available to
+     *                     nodes above this Join in the tree
      */
     public IgniteNestedLoopJoin(RelOptCluster cluster, RelTraitSet traitSet, RelNode left, RelNode right,
-        RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
+                                RexNode condition, Set<CorrelationId> variablesSet, JoinRelType joinType) {
         super(cluster, traitSet, left, right, condition, variablesSet, joinType);
     }
 
-    /** */
+    /**  */
     public IgniteNestedLoopJoin(RelInput input) {
         this(input.getCluster(),
             input.getTraitSet().replace(IgniteConvention.INSTANCE),
@@ -75,9 +83,26 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
             input.getEnum("joinType", JoinRelType.class));
     }
 
+    @Override
+    public List<Pair<RelTraitSet, List<RelTraitSet>>> deriveDistribution(RelTraitSet nodeTraits, List<RelTraitSet> inputTraits) {
+        if (!IgniteSystemProperties.getBoolean("MD_USE_DIST_NLJ", false)) return super.deriveDistribution(nodeTraits, inputTraits);
+
+        RelTraitSet left = inputTraits.get(0), right = inputTraits.get(1);
+
+        List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>(super.deriveDistribution(nodeTraits, inputTraits));
+
+        RelTraitSet outTraits = nodeTraits.replace(TraitUtils.distribution(right));
+        RelTraitSet leftTraits = left.replace(IgniteDistributions.broadcast());
+        RelTraitSet rightTraits = right;
+        res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
+
+        return res;
+    }
+
     /** {@inheritDoc} */
-    @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        IgniteCostFactory costFactory = (IgniteCostFactory) planner.getCostFactory();
 
         double leftCount = mq.getRowCount(getLeft());
 
@@ -89,6 +114,14 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
+        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
+            // Partial join on agg'd partition
+            RelOptTable table = mq.getTableOrigin(getRight());
+            if (table != null) {
+                rightCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+            }
+        }
+
         double rows = leftCount * rightCount;
 
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
@@ -98,19 +131,29 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
     }
 
     /** {@inheritDoc} */
-    @Override public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
-        boolean semiJoinDone) {
+    @Override
+    public Join copy(RelTraitSet traitSet, RexNode condition, RelNode left, RelNode right, JoinRelType joinType,
+                     boolean semiJoinDone) {
         return new IgniteNestedLoopJoin(getCluster(), traitSet, left, right, condition, variablesSet, joinType);
     }
 
     /** {@inheritDoc} */
-    @Override public <T> T accept(IgniteRelVisitor<T> visitor) {
+    @Override
+    public <T> T accept(IgniteRelVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
+    @Override
+    public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteNestedLoopJoin(cluster, getTraitSet(), inputs.get(0), inputs.get(1), getCondition(),
             getVariablesSet(), getJoinType());
+    }
+
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw)
+            .item("dist", distribution());
     }
 }

@@ -58,22 +58,12 @@ public interface IgniteRelVisitor<T> {
     /**
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */
-    T visit(IgniteDistributedNestedLoopJoin rel);
-
-    /**
-     * See {@link IgniteRelVisitor#visit(IgniteRel)}
-     */
     T visit(IgniteHashJoin rel);
 
     /**
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */
     T visit(CacheableIgniteHashJoin rel);
-
-    /**
-     * See {@link IgniteRelVisitor#visit(IgniteRel)}
-     */
-    T visit(IgniteDistributedMergeJoin rel);
 
     /**
      * See {@link IgniteRelVisitor#visit(IgniteRel)}

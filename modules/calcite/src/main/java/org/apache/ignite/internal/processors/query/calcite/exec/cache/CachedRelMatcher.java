@@ -3,8 +3,6 @@ package org.apache.ignite.internal.processors.query.calcite.exec.cache;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCollect;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteExchange;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
@@ -88,14 +86,6 @@ class CachedRelMatcher implements IgniteRelVisitor<Boolean> {
      * See {@link IgniteRelVisitor#visit(IgniteRel)}
      */
     @Override
-    public Boolean visit(IgniteDistributedNestedLoopJoin rel) {
-        return false;
-    }
-
-    /**
-     * See {@link IgniteRelVisitor#visit(IgniteRel)}
-     */
-    @Override
     public Boolean visit(IgniteHashJoin rel) {
         if (!rel.cacheMatches(other)) return false;
         other = (IgniteRel) other.getInput(1);
@@ -108,14 +98,6 @@ class CachedRelMatcher implements IgniteRelVisitor<Boolean> {
     @Override
     public Boolean visit(CacheableIgniteHashJoin rel) {
         return visit((IgniteHashJoin) rel);
-    }
-
-    /**
-     * See {@link IgniteRelVisitor#visit(IgniteRel)}
-     */
-    @Override
-    public Boolean visit(IgniteDistributedMergeJoin rel) {
-        return false;
     }
 
     /**

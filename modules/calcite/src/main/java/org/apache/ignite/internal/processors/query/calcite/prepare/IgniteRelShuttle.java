@@ -22,8 +22,6 @@ import java.util.List;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCollect;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin;
-import org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteExchange;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
@@ -91,12 +89,6 @@ public class IgniteRelShuttle implements IgniteRelVisitor<IgniteRel> {
 
     /** {@inheritDoc} */
     @Override
-    public IgniteRel visit(IgniteDistributedNestedLoopJoin rel) {
-        return processNode(rel);
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public IgniteRel visit(IgniteHashJoin rel) {
         return processNode(rel);
     }
@@ -104,12 +96,6 @@ public class IgniteRelShuttle implements IgniteRelVisitor<IgniteRel> {
     /** {@inheritDoc} */
     @Override
     public IgniteRel visit(CacheableIgniteHashJoin rel) {
-        return processNode(rel);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public IgniteRel visit(IgniteDistributedMergeJoin rel) {
         return processNode(rel);
     }
 

@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
@@ -36,9 +37,12 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.externalize.RelInputEx;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
+import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
+import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
@@ -263,16 +267,33 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        return computeSelfCost(costFactory, leftCount, rightCount);
-    }
+        // Account for distributed join on partition. We assume a roughly even distribution of data
+        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
+            RelOptTable table = mq.getTableOrigin(getLeft());
+            if (table != null) { // Could be null if we're doing a join of a join
+                rightCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+            }
+        }
 
-    /**
-     * Computes the self cost for a hash join given a left and right count. Used here and in { #org.apache.ignite.internal.processors.query.calcite.rel.IgniteDistributedMergeJoin }
-     * which modifies the leftCount to account for the distribution of join nodes
-     */
-    protected RelOptCost computeSelfCost(IgniteCostFactory costFactory, double leftCount, double rightCount) {
         double rows = leftCount + rightCount;
         return costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0);
+    }
+
+    @Override
+    public List<Pair<RelTraitSet, List<RelTraitSet>>> deriveDistribution(RelTraitSet nodeTraits, List<RelTraitSet> inputTraits) {
+        if (!IgniteSystemProperties.getBoolean("MD_USE_DIST_MJ", false)) return super.deriveDistribution(nodeTraits, inputTraits);
+
+        RelTraitSet left = inputTraits.get(0), right = inputTraits.get(1);
+
+        List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>(super.deriveDistribution(nodeTraits, inputTraits));
+
+        // Broadcast the left input
+        RelTraitSet outTraits = nodeTraits.replace(TraitUtils.distribution(right));
+        RelTraitSet leftTraits = left.replace(IgniteDistributions.broadcast());
+        RelTraitSet rightTraits = right;
+        res.add(Pair.of(outTraits, ImmutableList.of(leftTraits, rightTraits)));
+
+        return res;
     }
 
     /** {@inheritDoc} */
@@ -280,7 +301,8 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw)
             .item("leftCollation", leftCollation)
-            .item("rightCollation", rightCollation);
+            .item("rightCollation", rightCollation)
+            .item("dist", distribution());
     }
 
     /**

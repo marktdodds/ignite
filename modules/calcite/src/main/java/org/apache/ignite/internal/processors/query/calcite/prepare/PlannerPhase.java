@@ -47,8 +47,6 @@ import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.rule.CollectRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelateToNestedLoopRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.CorrelatedNestedLoopJoinRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.DistributedMergeJoinConverterRule;
-import org.apache.ignite.internal.processors.query.calcite.rule.DistributedNestedLoopJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToHashIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
@@ -312,7 +310,6 @@ public enum PlannerPhase {
                         .withOperandSupplier(b -> b.operand(LogicalJoin.class)
                             .anyInputs()).toRule(),
 
-                    CoreRules.JOIN_COMMUTE,
                     CoreRules.JOIN_COMMUTE_OUTER,
 
                     FilterIntoJoinRule.FilterIntoJoinRuleConfig.DEFAULT
@@ -425,13 +422,6 @@ public enum PlannerPhase {
 
             if (IgniteSystemProperties.getBoolean("MD_USE_HJ", false))
                 rules.add(HashJoinConverterRule.INSTANCE);
-
-            if (IgniteSystemProperties.getBoolean("MD_USE_DIST_NLJ", false))
-                rules.add(DistributedNestedLoopJoinConverterRule.INSTANCE);
-
-            if (IgniteSystemProperties.getBoolean("MD_USE_DIST_MJ", false))
-                rules.add(DistributedMergeJoinConverterRule.INSTANCE);
-
 
             rules.addAll(
                 Arrays.asList(
