@@ -114,7 +114,10 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
+        if (
+            TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())
+            && TraitUtils.distribution(getRight().getTraitSet()).satisfies(IgniteDistributions.random())
+        ) {
             // Partial join on agg'd partition
             RelOptTable table = mq.getTableOrigin(getRight());
             if (table != null) {

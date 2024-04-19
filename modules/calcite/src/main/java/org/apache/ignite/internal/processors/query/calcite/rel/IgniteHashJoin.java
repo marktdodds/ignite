@@ -123,7 +123,10 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
         double distributionFactor = 1;
 
         // Account for distributed join on partition. We assume a roughly even distribution of data
-        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
+        if (
+            TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())
+            && TraitUtils.distribution(getRight().getTraitSet()).satisfies(IgniteDistributions.random())
+        ) {
             RelOptTable table = mq.getTableOrigin(getLeft());
             if (table != null) { // Could be null if we're doing a join of a join
                 distributionFactor = table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
