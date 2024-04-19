@@ -89,6 +89,9 @@ public class IgniteExchange extends Exchange implements IgniteRel {
             if (exponent >= 1) latencyPenalty = Math.pow(rowCount, exponent);
         }
 
+        if (IgniteSystemProperties.getBoolean("MD_NO_EXCHANGE_NETWORK_COST", false))
+            totalBytes = 0;
+
         return costFactory.makeCost(rowCount, rowCount * IgniteCost.ROW_PASS_THROUGH_COST, 0, 0, totalBytes, latencyPenalty);
     }
 

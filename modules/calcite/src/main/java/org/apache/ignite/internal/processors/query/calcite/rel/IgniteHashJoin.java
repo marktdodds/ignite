@@ -132,8 +132,11 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
 
         double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
+        // Force the smaller relation to be built on a hash join
+        if (IgniteSystemProperties.getBoolean("MD_HJ_FORCE_BUILD_ON_SMALL", false) && rightCount / distributionFactor > leftCount) return costFactory.makeInfiniteCost();
+
         return costFactory.makeCost(leftCount + rightCount,
-            leftCount * (IgniteCost.HASH_LOOKUP_COST) + rightCount * IgniteCost.ROW_PASS_THROUGH_COST / distributionFactor, // We do {leftCount} comparisons on a {rightCount} size hash table
+            leftCount * (IgniteCost.ROW_COMPARISON_COST) + rightCount * IgniteCost.HASH_LOOKUP_COST / distributionFactor, // We do {leftCount} comparisons on a {rightCount} size hash table
             0,
             rightSize / distributionFactor,
             0);
