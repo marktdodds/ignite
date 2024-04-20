@@ -16,7 +16,7 @@ done
 java_args="--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED -Dfile.encoding=UTF-8 -ea -Xmx24G -Xms4G"
 
 # Ignite Specific Args
-java_args="$java_args -Dcalcite.volcano.dump.sets=false -Dcalcite.volcano.dump.graphviz=false -DIGNITE_QUIET=true -DIGNITE_UPDATE_NOTIFIER=false -DIGNITE_SYSTEM_WORKER_BLOCKED_TIMEOUT=9999999 -DIGNITE_JVM_PAUSE_DETECTOR_DISABLED=true -DIGNITE_PERFORMANCE_SUGGESTIONS_DISABLED=true"
+java_args="$java_args -Dcalcite.volcano.dump.sets=false -Dcalcite.volcano.dump.graphviz=false -DIGNITE_QUIET=true -DIGNITE_UPDATE_NOTIFIER=false -DIGNITE_PERFORMANCE_SUGGESTIONS_DISABLED=true"
 
 start_class="org.apache.ignite.startup.cmdline.CommandLineStartup"
 config="./config/playground-config.xml"
