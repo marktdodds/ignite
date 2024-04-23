@@ -105,9 +105,4 @@ public class IgniteExchange extends Exchange implements IgniteRel {
         return new IgniteExchange(cluster, getTraitSet(), sole(inputs), distribution);
     }
 
-    @Override
-    public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw)
-            .item("type", getRowType());
-    }
 }
