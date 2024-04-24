@@ -415,7 +415,7 @@ public enum PlannerPhase {
 
             ));
 
-            if (useJoinOptimizations) {
+            if (useJoinOptimizations && !IgniteSystemProperties.getBoolean("MD_DISABLE_JOIN_OPTIMIZATIONS", false)) {
                 rules.add(JoinPushThroughJoinRule.Config.LEFT.withOperandFor(LogicalJoin.class).toRule());
                 rules.add(CoreRules.JOIN_COMMUTE_OUTER);
             }

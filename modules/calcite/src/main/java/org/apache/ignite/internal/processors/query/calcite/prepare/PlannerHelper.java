@@ -79,6 +79,15 @@ public class PlannerHelper {
         return max;
     }
 
+    private static int totalNestedJoins(RelNode rel) {
+        if (rel instanceof LogicalJoin) return 1 + totalNestedJoins(rel.getInput(0)) + totalNestedJoins(rel.getInput(1));
+        int sum = 0;
+        for (RelNode child : rel.getInputs()) {
+            sum += totalNestedJoins(child);
+        }
+        return sum;
+    }
+
     /**
      * @param sqlNode Sql node.
      * @param planner Planner.
@@ -132,7 +141,7 @@ public class PlannerHelper {
             IgniteRel igniteRel;
 
             if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
-                if (maxNestedJoins(rel) > 3) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
+                if (maxNestedJoins(rel) > 3 || totalNestedJoins(rel) > 4) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
                 else igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
             } else {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
