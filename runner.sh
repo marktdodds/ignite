@@ -13,7 +13,18 @@ for env in "$@"; do
 done
 
 # Java Reflection Overrides
-java_args="--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED -Dfile.encoding=UTF-8 -ea -Xmx20G -Xms4G"
+java_args="\
+--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED \
+--add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
+--add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED \
+--add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED \
+--add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED \
+--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED \
+--add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED \
+--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED \
+--add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED \
+--add-opens=java.sql/java.sql=ALL-UNNAMED"
+java_args="${java_args} -Dfile.encoding=UTF-8 -server -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC -Xmx20G -Xms4G"
 
 # Ignite Specific Args
 java_args="$java_args -Dcalcite.volcano.dump.sets=false -Dcalcite.volcano.dump.graphviz=false -DIGNITE_UPDATE_NOTIFIER=false -DIGNITE_PERFORMANCE_SUGGESTIONS_DISABLED=true"
