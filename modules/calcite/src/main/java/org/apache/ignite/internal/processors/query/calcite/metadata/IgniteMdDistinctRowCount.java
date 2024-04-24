@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.calcite.metadata;
 
 import org.apache.calcite.plan.volcano.RelSubset;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.ReflectiveRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMdDistinctRowCount;
 import org.apache.calcite.rel.metadata.RelMetadataProvider;
@@ -41,6 +42,16 @@ public class IgniteMdDistinctRowCount extends RelMdDistinctRowCount {
         ImmutableBitSet groupKey,
         RexNode predicate
     ) {
+        return getDistinctRowCount(rel.getBestOrOriginal(), mq, groupKey, predicate);
+    }
+
+    @Override public Double getDistinctRowCount(
+        RelNode rel,
+        RelMetadataQuery mq,
+        ImmutableBitSet groupKey,
+        RexNode predicate
+    ) {
+
         if (groupKey.cardinality() == 0)
             return 1d;
 
