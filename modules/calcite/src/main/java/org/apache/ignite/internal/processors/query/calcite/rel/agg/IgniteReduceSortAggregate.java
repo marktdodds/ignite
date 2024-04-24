@@ -32,6 +32,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Util;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
@@ -122,5 +123,10 @@ public class IgniteReduceSortAggregate extends IgniteReduceAggregateBase impleme
             rows * IgniteCost.ROW_PASS_THROUGH_COST,
             0
         );
+    }
+
+    @Override
+    public RelCollation collation() {
+        return Util.first(super.collation(), this.collation);
     }
 }
