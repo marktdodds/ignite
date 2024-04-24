@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.google.common.collect.ImmutableSet;
+import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollations;
@@ -141,8 +142,13 @@ public class PlannerHelper {
             IgniteRel igniteRel;
 
             if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
-                if (maxNestedJoins(rel) > 3 || totalNestedJoins(rel) > 4) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
-                else igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
+                igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
+                try {
+                    if (maxNestedJoins(rel) <= 3 && totalNestedJoins(rel) <= 4) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
+                } catch (RelOptPlanner.CannotPlanException e) {
+                    // This is a fallback, this planner is much quicker as it doesnt permute the join order
+                    log.warning("Main planner failed. Using backup plan", e);
+                }
             } else {
                 igniteRel = planner.transform(PlannerPhase.OPTIMIZATION, desired, rel);
             }
