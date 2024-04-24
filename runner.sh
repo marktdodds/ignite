@@ -27,7 +27,7 @@ java_args="\
 java_args="${java_args} -Dfile.encoding=UTF-8 -server -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC -Xmx20G -Xms4G"
 
 # Ignite Specific Args
-java_args="$java_args -Dcalcite.volcano.dump.sets=false -Dcalcite.volcano.dump.graphviz=false -DIGNITE_UPDATE_NOTIFIER=false -DIGNITE_PERFORMANCE_SUGGESTIONS_DISABLED=true"
+java_args="$java_args -Dcalcite.volcano.dump.sets=false -Dcalcite.volcano.dump.graphviz=false -DIGNITE_UPDATE_NOTIFIER=false"
 
 start_class="org.apache.ignite.startup.cmdline.CommandLineStartup"
 config="./config/playground-config.xml"
