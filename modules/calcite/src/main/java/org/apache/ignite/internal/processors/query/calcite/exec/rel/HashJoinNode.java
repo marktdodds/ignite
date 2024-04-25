@@ -206,8 +206,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         leftInBuf.add(row);
 
-        if (waitingLeft == 0)
-            join();
+        join();
     }
 
     /**  */
