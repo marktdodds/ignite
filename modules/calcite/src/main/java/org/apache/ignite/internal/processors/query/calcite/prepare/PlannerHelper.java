@@ -126,9 +126,9 @@ public class PlannerHelper {
 
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(true);
 
-                System.out.println(RelOptUtil.toString(rel, SqlExplainLevel.ALL_ATTRIBUTES));
+                if (InternalDebug.SHOULD_LOG)
+                    InternalDebug.log(RelOptUtil.toString(rel, SqlExplainLevel.ALL_ATTRIBUTES));
                 rel = planner.transform(PlannerPhase.LOGICAL_OPTIMIZATIONS, rel.getTraitSet(), rel);
-                System.out.println(RelOptUtil.toString(rel, SqlExplainLevel.ALL_ATTRIBUTES));
 
                 ((RelMetadataQueryEx) rel.getCluster().getMetadataQuery()).setAllowNonIgniteCostFunctions(false);
             }

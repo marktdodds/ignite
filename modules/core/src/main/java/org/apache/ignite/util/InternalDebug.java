@@ -8,7 +8,7 @@ import java.util.Map;
 
 public class InternalDebug {
 
-    private static boolean SHOULD_LOG = IgniteSystemProperties.getBoolean("MD_QUERY_LOGGING", false);
+    public static boolean SHOULD_LOG = IgniteSystemProperties.getBoolean("MD_QUERY_LOGGING", false);
 
     private static final Map<String, InternalDebug> map = new HashMap<>();
 
