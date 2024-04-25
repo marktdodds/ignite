@@ -38,7 +38,11 @@
 				<property name="host" value="10g"/>
 			</bean>
 		</property>
-
+		<property name="communicationSpi">
+		    <bean class="org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi">
+		        <property name="messageQueueLimit" value="4096"/>
+		    </bean>
+		</property>
 		<property name="cacheConfiguration">
 			<list>
 				<bean abstract="true" class="org.apache.ignite.configuration.CacheConfiguration" id="cache-template-bean">
