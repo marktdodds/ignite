@@ -77,22 +77,22 @@ public class IgniteExchange extends Exchange implements IgniteRel {
     /** {@inheritDoc} */
     @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         double rowCount = mq.getRowCount(getInput());
-        double bytesPerRow = getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
-        double totalBytes = rowCount * bytesPerRow;
+        double networkCost = rowCount;
         double latencyPenalty = 0;
 
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 
-        if (IgniteDistributions.broadcast().equals(distribution)) {
-            totalBytes *= IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
+        // If its not single we are sending to at 2+ nodes so apply the penalty
+        if (!distribution.equals(IgniteDistributions.single())) {
+            networkCost *= IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
             double exponent = IgniteSystemProperties.getDouble("MD_BROADCAST_LATENCY_PENALTY", 0);
             if (exponent >= 1) latencyPenalty = Math.pow(rowCount, exponent);
         }
 
         if (IgniteSystemProperties.getBoolean("MD_NO_EXCHANGE_NETWORK_COST", false))
-            totalBytes = 0;
+            networkCost = 0;
 
-        return costFactory.makeCost(rowCount, rowCount * IgniteCost.ROW_PASS_THROUGH_COST, 0, 0, totalBytes, latencyPenalty);
+        return costFactory.makeCost(rowCount, rowCount * IgniteCost.ROW_PASS_THROUGH_COST, 0, 0, networkCost, latencyPenalty);
     }
 
     /** {@inheritDoc} */
