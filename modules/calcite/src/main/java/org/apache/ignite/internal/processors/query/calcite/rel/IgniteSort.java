@@ -159,7 +159,7 @@ public class IgniteSort extends Sort implements IgniteRel {
 
         double cpuCost = inputRows * IgniteCost.ROW_PASS_THROUGH_COST + Util.nLogM(inputRows, memRows)
             * IgniteCost.ROW_COMPARISON_COST;
-        double memory = memRows * getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
+        double memory = memRows; //* getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
 
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 

@@ -114,23 +114,12 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        if (
-            TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())
-            && TraitUtils.distribution(getRight().getTraitSet()).satisfies(IgniteDistributions.random())
-        ) {
-            // Partial join on agg'd partition
-            RelOptTable table = mq.getTableOrigin(getRight());
-            if (table != null) {
-                rightCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
-            }
-        }
+        leftCount /= distributionFactor(getLeft(), mq);
+        rightCount /= distributionFactor(getRight(), mq);
 
         double rows = leftCount * rightCount;
 
-        double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
-
-        return costFactory.makeCost(rows,
-            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightSize, 0, rows);
+        return costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0, rightCount, 0, rows);
     }
 
     /** {@inheritDoc} */

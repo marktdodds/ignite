@@ -26,7 +26,9 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelDistribution;
@@ -43,6 +45,7 @@ import org.apache.calcite.util.ImmutableIntList;
 import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.Util;
 import org.apache.calcite.util.mapping.Mappings;
+import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.CorrelationTrait;
 import org.apache.ignite.internal.processors.query.calcite.trait.DistributionFunction;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistribution;
@@ -313,5 +316,27 @@ public abstract class AbstractIgniteJoin extends Join implements TraitsAwareIgni
             (left2Right ? left : right).getRowType().getFieldCount(),
             (left2Right ? right : left).getRowType().getFieldCount()
         );
+    }
+
+    private boolean hasExchange(RelNode rel) {
+        if (rel instanceof IgniteExchange) return true;
+        if (rel instanceof RelSubset) return hasExchange(((RelSubset) rel).getBestOrOriginal());
+        for (RelNode child : rel.getInputs()) {
+            if (hasExchange(child)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns the distribution factor which is the number of nodes a cache is distributed over.
+     */
+    protected int distributionFactor(RelNode rel, RelMetadataQuery mq) {
+        // Account for distributed join on left partition. We assume a roughly even distribution of data
+        if (hasExchange(rel)) return 1;
+        RelOptTable table = mq.getTableOrigin(rel);
+        if (table != null) { // Could be null if we're doing a join of a join
+            return table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
+        }
+        return 1;
     }
 }

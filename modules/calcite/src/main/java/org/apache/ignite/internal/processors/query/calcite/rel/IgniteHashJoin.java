@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
@@ -51,7 +50,6 @@ import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
-import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
@@ -120,28 +118,18 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        double distributionFactor = 1;
+//        leftCount /= distributionFactor(getLeft(), mq);
+        rightCount /= distributionFactor(getRight(), mq);
 
-        // Account for distributed join on partition. We assume a roughly even distribution of data
-        if (
-            TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())
-            && TraitUtils.distribution(getRight().getTraitSet()).satisfies(IgniteDistributions.random())
-        ) {
-            RelOptTable table = mq.getTableOrigin(getLeft());
-            if (table != null) { // Could be null if we're doing a join of a join
-                distributionFactor = table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
-            }
-        }
-
-        double rightSize = rightCount * getRight().getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
+        double rows = leftCount + rightCount;
 
         // Force the smaller relation to be built on a hash join
-        if (IgniteSystemProperties.getBoolean("MD_HJ_FORCE_BUILD_ON_SMALL", false) && rightCount / distributionFactor > leftCount) return costFactory.makeInfiniteCost();
+        if (IgniteSystemProperties.getBoolean("MD_HJ_FORCE_BUILD_ON_SMALL", false) && rightCount > leftCount) return costFactory.makeInfiniteCost();
 
-        return costFactory.makeCost(leftCount + rightCount,
-            leftCount * (IgniteCost.ROW_COMPARISON_COST) + rightCount * IgniteCost.HASH_LOOKUP_COST / distributionFactor, // We do {leftCount} comparisons on a {rightCount} size hash table
+        return costFactory.makeCost(rows,
+            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST),// + rightCount * IgniteCost.ROW_COMPARISON_COST,
             0,
-            rightSize / distributionFactor,
+            rightCount,
             0);
     }
 
@@ -150,6 +138,7 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
         RelTraitSet left = inputTraits.get(0), right = inputTraits.get(1);
 
         List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>(super.deriveDistribution(nodeTraits, inputTraits));
+//        List<Pair<RelTraitSet, List<RelTraitSet>>> res = new ArrayList<>();
 
         // Broadcast the left input
         RelTraitSet outTraits = nodeTraits.replace(TraitUtils.distribution(right));

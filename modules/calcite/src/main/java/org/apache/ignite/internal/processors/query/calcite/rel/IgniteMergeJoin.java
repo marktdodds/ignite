@@ -267,13 +267,8 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
         if (Double.isInfinite(rightCount))
             return costFactory.makeInfiniteCost();
 
-        // Account for distributed join on partition. We assume a roughly even distribution of data
-        if (TraitUtils.distribution(getLeft().getTraitSet()).satisfies(IgniteDistributions.broadcast())) {
-            RelOptTable table = mq.getTableOrigin(getLeft());
-            if (table != null) { // Could be null if we're doing a join of a join
-                rightCount /= table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
-            }
-        }
+        leftCount /= distributionFactor(getLeft(), mq);
+        rightCount /= distributionFactor(getRight(), mq);
 
         double rows = leftCount + rightCount;
         return costFactory.makeCost(rows, rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST), 0);
