@@ -17,16 +17,16 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec.rel;
 
+import com.google.common.collect.ImmutableList;
+import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHashKey;
-import org.apache.ignite.internal.processors.query.calcite.exec.exp.RexHasher;
 import org.apache.ignite.internal.processors.query.calcite.exec.tracker.ObjectSizeCalculator;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
@@ -51,7 +51,8 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     protected static final int NOT_WAITING = -1;
 
     /**  */
-    protected final RexNode cond;
+    private final ImmutableBitSet leftJoinBitset;
+    private final ImmutableBitSet rightJoinBitset;
 
 
     /**  */
@@ -106,13 +107,14 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
      * @param cond         Join expression.
      * @param rightRowType Right row type
      */
-    private HashJoinNode(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+    private HashJoinNode(ExecutionContext<Row> ctx, RelDataType rowType, JoinInfo cond, RelDataType leftRowType, RelDataType rightRowType) {
         super(ctx, rowType);
 
-        this.cond = cond;
         this.leftRowType = leftRowType;
         this.rightRowType = rightRowType;
 
+        leftJoinBitset = cond.leftSet();
+        rightJoinBitset = cond.rightSet();
         handler = ctx.rowHandler();
         rightRowFactory = handler.factory(ctx.getTypeFactory(), rightRowType);
     }
@@ -209,6 +211,16 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         join();
     }
 
+    protected RexHashKey getHashKey(Row r, boolean isLeft) {
+        ImmutableBitSet keys = isLeft ? leftJoinBitset : rightJoinBitset;
+        Object[] key = new Object[keys.cardinality()];
+        int index = 0;
+        for (int i = keys.nextSetBit(0); i >= 0; i = keys.nextSetBit(i + 1)){
+            key[index++] = handler.get(i, r);
+        }
+        return new RexHashKey(ImmutableList.copyOf(key));
+    }
+
     /**  */
     private void pushRight(Row row) throws Exception {
         assert downstream() != null;
@@ -218,7 +230,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         waitingRight--;
 
-        RexHashKey hashKey = new RexHasher<>(handler, leftRowType.getFieldCount(), row).go(cond);
+        RexHashKey hashKey = getHashKey(row, false);
         if (!rightMaterialized.containsKey(hashKey)) rightMaterialized.put(hashKey, new ArrayList<>());
         rightMaterialized.get(hashKey).add(row);
 
@@ -305,7 +317,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
     @NotNull
     public static <Row> HashJoinNode<Row> create(ExecutionContext<Row> ctx, RelDataType outputRowType,
                                                  RelDataType leftRowType, RelDataType rightRowType, JoinRelType joinType,
-                                                 RexNode cond) {
+                                                 JoinInfo cond) {
         switch (joinType) {
             case INNER:
                 return new InnerJoin<>(ctx, outputRowType, cond, leftRowType, rightRowType);
@@ -398,7 +410,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
          * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public InnerJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+        public InnerJoin(ExecutionContext<Row> ctx, RelDataType rowType, JoinInfo cond, RelDataType leftRowType, RelDataType rightRowType) {
             super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
@@ -417,7 +429,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                     while (requested > 0 && !leftInBuf.isEmpty()) {
                         Row left = leftInBuf.remove();
 
-                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        RexHashKey hashId = getHashKey(left, true);//new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
 
                         for (Row right : bucket) {
@@ -455,7 +467,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         public LeftJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
-            RexNode cond,
+            JoinInfo cond,
             RelDataType leftRowType,
             RelDataType rightRowType) {
             super(ctx, rowType, cond, leftRowType, rightRowType);
@@ -481,7 +493,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                     while (requested > 0 && !leftInBuf.isEmpty()) {
                         Row left = leftInBuf.remove();
 
-                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        RexHashKey hashId = getHashKey(left, true);//new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.get(hashId);
                         if (bucket == null) {
                             pushDownstream(handler.concat(left, rightRowFactory.create()));
@@ -524,7 +536,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         public RightJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
-            RexNode cond,
+            JoinInfo cond,
             RelDataType leftRowType,
             RelDataType rightRowType) {
             super(ctx, rowType, cond, leftRowType, rightRowType);
@@ -559,7 +571,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                         Row left = leftInBuf.remove();
 
-                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        RexHashKey hashId = getHashKey(left, true);//new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
                         boolean sent = false;
                         for (Row right : bucket) {
@@ -626,7 +638,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
         public FullOuterJoin(
             ExecutionContext<Row> ctx,
             RelDataType rowType,
-            RexNode cond,
+            JoinInfo cond,
             RelDataType leftRowType,
             RelDataType rightRowType) {
             super(ctx, rowType, cond, leftRowType, rightRowType);
@@ -659,7 +671,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
                         Row left = leftInBuf.remove();
 
-                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        RexHashKey hashId = getHashKey(left, true);//new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.getOrDefault(hashId, new ArrayList<>());
                         boolean sent = false;
                         for (Row right : bucket) {
@@ -725,7 +737,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
          * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public SemiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+        public SemiJoin(ExecutionContext<Row> ctx, RelDataType rowType, JoinInfo cond, RelDataType leftRowType, RelDataType rightRowType) {
             super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
@@ -741,7 +753,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
 
 
                     Row left = leftInBuf.remove();
-                    RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                    RexHashKey hashId = getHashKey(left, true);//new RexHasher<>(handler, 0, left).go(cond);
                     List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
 
                     // Because we potentially moved predicates up we have to ensure we have at
@@ -775,7 +787,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
          * @param ctx  Execution context.
          * @param cond Join expression.
          */
-        public AntiJoin(ExecutionContext<Row> ctx, RelDataType rowType, RexNode cond, RelDataType leftRowType, RelDataType rightRowType) {
+        public AntiJoin(ExecutionContext<Row> ctx, RelDataType rowType, JoinInfo cond, RelDataType leftRowType, RelDataType rightRowType) {
             super(ctx, rowType, cond, leftRowType, rightRowType);
         }
 
@@ -793,7 +805,7 @@ public abstract class HashJoinNode<Row> extends MemoryTrackingNode<Row> {
                     while (requested > 0 && !leftInBuf.isEmpty()) {
 
                         Row left = leftInBuf.remove();
-                        RexHashKey hashId = new RexHasher<>(handler, 0, left).go(cond);
+                        RexHashKey hashId = getHashKey(left, true);//new RexHasher<>(handler, 0, left).go(cond);
                         List<Row> bucket = rightMaterialized.getOrDefault(hashId, EMPTY_LIST);
                         // Because we potentially moved predicates up we have to ensure we have at
                         // least 1 valid right row or we'll get incorrect results

@@ -265,7 +265,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         RelDataType rightType = rel.getRight().getRowType();
         JoinRelType joinType = rel.getJoinType();
 
-        return HashJoinNode.create(ctx, outType, leftType, rightType, joinType, rel.getCondition());
+        return HashJoinNode.create(ctx, outType, leftType, rightType, joinType, rel.analyzeCondition());
     }
 
 
