@@ -70,7 +70,7 @@ public abstract class IgniteAggregate extends Aggregate implements IgniteRel {
 
     /** */
     public double estimateMemoryForGroup(RelMetadataQuery mq) {
-        double mem = groupSet.cardinality() * IgniteCost.AVERAGE_FIELD_SIZE;
+        double mem = groupSet.cardinality();// * IgniteCost.AVERAGE_FIELD_SIZE;
 
         if (!aggCalls.isEmpty()) {
             double grps = estimateRowCount(mq);
@@ -107,7 +107,7 @@ public abstract class IgniteAggregate extends Aggregate implements IgniteRel {
     public RelOptCost computeSelfCostSort(RelOptPlanner planner, RelMetadataQuery mq) {
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 
-        double inRows = mq.getRowCount(getInput());
+        double inRows = mq.getRowCount(getInput()) / distributionFactor(this, mq);
 
         return costFactory.makeCost(
             inRows,

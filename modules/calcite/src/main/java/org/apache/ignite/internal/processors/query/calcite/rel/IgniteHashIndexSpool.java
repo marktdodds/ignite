@@ -120,9 +120,9 @@ public class IgniteHashIndexSpool extends Spool implements IgniteRel {
     /** {@inheritDoc} */
     @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         double rowCnt = mq.getRowCount(getInput());
-        double bytesPerRow = getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
-        double totalBytes = rowCnt * bytesPerRow;
-        double cpuCost = IgniteCost.HASH_LOOKUP_COST;
+//        double bytesPerRow = getRowType().getFieldCount() * IgniteCost.AVERAGE_FIELD_SIZE;
+        double totalBytes = rowCnt;// * bytesPerRow;
+        double cpuCost = rowCnt * IgniteCost.HASH_LOOKUP_COST;
 
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 

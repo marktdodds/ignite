@@ -317,26 +317,4 @@ public abstract class AbstractIgniteJoin extends Join implements TraitsAwareIgni
             (left2Right ? right : left).getRowType().getFieldCount()
         );
     }
-
-    private boolean hasExchange(RelNode rel) {
-        if (rel instanceof IgniteExchange) return true;
-        if (rel instanceof RelSubset) return hasExchange(((RelSubset) rel).getBestOrOriginal());
-        for (RelNode child : rel.getInputs()) {
-            if (hasExchange(child)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns the distribution factor which is the number of nodes a cache is distributed over.
-     */
-    protected int distributionFactor(RelNode rel, RelMetadataQuery mq) {
-        // Account for distributed join on left partition. We assume a roughly even distribution of data
-        if (hasExchange(rel)) return 1;
-        RelOptTable table = mq.getTableOrigin(rel);
-        if (table != null) { // Could be null if we're doing a join of a join
-            return table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size();
-        }
-        return 1;
-    }
 }

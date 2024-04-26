@@ -20,10 +20,16 @@ package org.apache.ignite.internal.processors.query.calcite.rel;
 import java.util.List;
 
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.PhysicalNode;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.CorrelationTrait;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistribution;
 import org.apache.ignite.internal.processors.query.calcite.trait.RewindabilityTrait;
@@ -93,6 +99,30 @@ public interface IgniteRel extends PhysicalNode {
 
     default boolean cacheMatches(IgniteRel other) {
         return false;
+    }
+
+
+    default boolean hasExchange(RelNode rel) {
+        if (rel instanceof IgniteExchange) return true;
+        if (rel instanceof RelSubset) return hasExchange(((RelSubset) rel).getBestOrOriginal());
+        for (RelNode child : rel.getInputs()) {
+            if (hasExchange(child)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns the distribution factor which is the number of nodes a cache is distributed over.
+     */
+    default int distributionFactor(RelNode rel, RelMetadataQuery mq) {
+        // Account for RelNode operating on a distributed table of some kind
+        if (hasExchange(rel)) return 1;
+        RelOptTable table = mq.getTableOrigin(rel);
+        if (table != null) { // Could be null if we're doing a join of a join
+            return IgniteSystemProperties.getInteger("MD_EXCHANGE_BROADCAST_MULTIPLIER",
+                table.unwrap(IgniteCacheTable.class).clusterMetrics().getPartitionLayout().size());
+        }
+        return 1;
     }
 
 }

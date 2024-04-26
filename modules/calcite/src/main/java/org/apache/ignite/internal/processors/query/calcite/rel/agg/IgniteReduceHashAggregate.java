@@ -88,7 +88,7 @@ public class IgniteReduceHashAggregate extends IgniteReduceAggregateBase impleme
 
         double mem = 0d;
         if (aggCalls.isEmpty())
-            mem = groupSet.cardinality() * IgniteCost.AVERAGE_FIELD_SIZE;
+            mem = groupSet.cardinality();// * IgniteCost.AVERAGE_FIELD_SIZE;
         else {
             for (AggregateCall aggCall : aggCalls) {
                 if (aggCall.isDistinct())
