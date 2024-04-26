@@ -30,6 +30,7 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Spool;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.externalize.RelInputEx;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
@@ -140,10 +141,19 @@ public class IgniteSortedIndexSpool extends Spool implements IgniteRel {
         double totalBytes = rowCnt;// * bytesPerRow;
         double cpuCost;
 
-        if (searchBounds != null)
+        boolean hasNonExactBounds = false;
+        if (searchBounds != null) {
+            for (SearchBounds bound : searchBounds) {
+                if (bound == null || bound.type() == SearchBounds.Type.EXACT) continue;
+                hasNonExactBounds = true;
+                break;
+            }
+        }
+
+        if (hasNonExactBounds)
             cpuCost = Math.log(rowCnt) * IgniteCost.ROW_COMPARISON_COST;
         else
-            cpuCost = rowCnt * IgniteCost.ROW_PASS_THROUGH_COST;
+            cpuCost = rowCnt * IgniteCost.ROW_COMPARISON_COST + 1; // Prefer hash
 
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 
