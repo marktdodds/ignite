@@ -52,10 +52,10 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
     protected int waitingRight;
 
     /** */
-    protected final Deque<Row> rightInBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
+    protected Deque<Row> rightInBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
 
     /** */
-    protected final Deque<Row> leftInBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
+    protected Deque<Row> leftInBuf = new ArrayDeque<>(IN_BUFFER_SIZE);
 
     /** */
     protected boolean inLoop;
@@ -218,6 +218,8 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
     protected void checkJoinFinished() throws Exception {
         if (!distributed || (waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING)) {
             requested = 0;
+            leftInBuf = null;
+            rightInBuf = null;
             downstream().end();
         }
     }
