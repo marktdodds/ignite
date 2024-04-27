@@ -150,12 +150,4 @@ public class IgniteMdRowCount extends RelMdRowCount {
     public double getRowCount(IgniteLimit rel, RelMetadataQuery mq) {
         return rel.estimateRowCount(mq);
     }
-
-    /**
-     * Estimation of row count for Limit operator.
-     */
-    public double getRowCount(IgniteReceiver rel, RelMetadataQuery mq) {
-        if (rel.getSender() != null) return rel.getSender().estimateRowCount(mq);
-        return rel.estimateRowCount(mq);
-    }
 }

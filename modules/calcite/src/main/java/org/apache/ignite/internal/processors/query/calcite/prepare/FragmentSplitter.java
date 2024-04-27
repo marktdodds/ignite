@@ -113,11 +113,11 @@ public class FragmentSplitter extends IgniteRelShuttle {
         RelNode input = rel instanceof IgniteTrimExchange ? rel.getInput(0) : rel;
 
         long targetFragmentId = curr.id;
-        long sourceFragmentId = cutPointFragmentId;//IdGenerator.nextId();
+        long sourceFragmentId = IdGenerator.nextId();
         long exchangeId = sourceFragmentId;
 
+        IgniteReceiver receiver = new IgniteReceiver(cluster, traits, rowType, exchangeId, sourceFragmentId);
         IgniteSender sender = new IgniteSender(cluster, traits, input, exchangeId, targetFragmentId, rel.distribution());
-        IgniteReceiver receiver = new IgniteReceiver(cluster, traits, rowType, exchangeId, sourceFragmentId, sender);
 
         curr.remotes.add(receiver);
         stack.push(new FragmentProto(sourceFragmentId, sender));

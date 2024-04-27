@@ -84,9 +84,9 @@ public class Splitter extends IgniteRelShuttle {
         long sourceFragmentId = IdGenerator.nextId();
         long exchangeId = sourceFragmentId;
 
+        IgniteReceiver receiver = new IgniteReceiver(cluster, rel.getTraitSet(), rel.getRowType(), exchangeId, sourceFragmentId);
         IgniteSender sender = new IgniteSender(cluster, rel.getTraitSet(), rel.getInput(), exchangeId, targetFragmentId,
             rel.distribution());
-        IgniteReceiver receiver = new IgniteReceiver(cluster, rel.getTraitSet(), rel.getRowType(), exchangeId, sourceFragmentId, sender);
 
         curr.remotes.add(receiver);
         stack.push(new FragmentProto(sourceFragmentId, sender));
