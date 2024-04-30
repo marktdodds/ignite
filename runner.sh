@@ -66,7 +66,7 @@ fi
 ./mvnw -Drelease -pl :ignite-runner dependency:build-classpath -Dmdep.outputFile="$cp_file"
 
 # Export the classpath
-export CLASSPATH=$(find . -name classes -type d | tr "\n" ":")$(cat $cp_file | tr ":" "\n" | grep -v "ignite.*2\.16" | tr "\n" ":")
+export CLASSPATH=$(find . -name classes -type d | tr "\n" ":")$(cat $cp_file | tr ":" "\n" | grep -v "ignite.*2\.16" | sed 's|calcite-core/1.34.0/calcite-core-1.34.0.jar|calcite-core/1.34.0-SNAPSHOT/calcite-core-1.34.0-SNAPSHOT.jar|' | tr "\n" ":")
 rm $cp_file
 
 # Run it
