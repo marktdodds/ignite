@@ -160,7 +160,7 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
     }
 
     private void debug(IgniteRel rel, IgnitePlanner planner) {
-        InternalDebug.log(rel.getRelTypeName() + ": " + rel.computeSelfCost(planner.cluster().getPlanner(), planner.cluster().getMetadataQuery()));
+        InternalDebug.alwaysLog(rel.getRelTypeName() + ": " + rel.computeSelfCost(planner.cluster().getPlanner(), planner.cluster().getMetadataQuery()));
         for (RelNode child : rel.getInputs())
             debug((IgniteRel) child, planner);
     }
