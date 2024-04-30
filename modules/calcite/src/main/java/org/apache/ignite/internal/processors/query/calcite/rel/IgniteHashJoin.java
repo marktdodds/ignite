@@ -127,7 +127,7 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
         if (IgniteSystemProperties.getBoolean("MD_HJ_FORCE_BUILD_ON_SMALL", false) && rightCount > leftCount) return costFactory.makeInfiniteCost();
 
         return costFactory.makeCost(rows,
-            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST),// + rightCount * IgniteCost.ROW_COMPARISON_COST,
+            rows * (IgniteCost.ROW_COMPARISON_COST + IgniteCost.ROW_PASS_THROUGH_COST + IgniteCost.HASH_ADD_COST),// + rightCount * IgniteCost.ROW_COMPARISON_COST,
             0,
             rightCount,
             0);

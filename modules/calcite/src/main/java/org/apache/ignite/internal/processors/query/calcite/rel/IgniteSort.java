@@ -153,7 +153,7 @@ public class IgniteSort extends Sort implements IgniteRel {
 
     /** {@inheritDoc} */
     @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        double inputRows = mq.getRowCount(getInput());
+        double inputRows = mq.getRowCount(getInput()) / distributionFactor(getInput(), mq);
 
         double memRows = memRows(inputRows);
 
@@ -166,8 +166,8 @@ public class IgniteSort extends Sort implements IgniteRel {
         RelOptCost cost = costFactory.makeCost(inputRows, cpuCost, 0, memory, 0);
 
         // Distributed sorting is more preferable than sorting on the single node.
-        if (TraitUtils.distribution(traitSet).satisfies(IgniteDistributions.single()))
-            cost.plus(costFactory.makeTinyCost());
+//        if (TraitUtils.distribution(traitSet).satisfies(IgniteDistributions.single()))
+//            cost.plus(costFactory.makeTinyCost());
 
         return cost;
     }
