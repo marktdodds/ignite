@@ -21,6 +21,7 @@ import java.util.List;
 
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.runtime.CalciteContextException;
 import org.apache.calcite.sql.SqlDdl;
@@ -31,6 +32,7 @@ import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlNodeList;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.ValidationException;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
@@ -157,6 +159,12 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
         return !(sqlNode instanceof SqlNodeList);
     }
 
+    private void debug(IgniteRel rel, IgnitePlanner planner) {
+        InternalDebug.log(rel.getRelTypeName() + ": " + rel.computeSelfCost(planner.cluster().getPlanner(), planner.cluster().getMetadataQuery()));
+        for (RelNode child : rel.getInputs())
+            debug((IgniteRel) child, planner);
+    }
+
     /** */
     private QueryPlan prepareQuery(SqlNode sqlNode, PlanningContext ctx) {
         IgnitePlanner planner = ctx.planner();
@@ -171,6 +179,9 @@ public class PrepareServiceImpl extends AbstractService implements PrepareServic
         IgniteRel igniteRel = optimize(sqlNode, planner, log);
 
         String plan = planExtractor.extract(igniteRel);
+
+        if (IgniteSystemProperties.getBoolean("MD_PLANNER_COST_BREAKDOWN", false))
+            debug(igniteRel, planner);
 
         // Extract parameters meta.
         FieldsMetadata params = DynamicParamTypeExtractor.go(igniteRel);
