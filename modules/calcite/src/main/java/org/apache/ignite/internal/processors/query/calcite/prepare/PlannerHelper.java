@@ -80,11 +80,11 @@ public class PlannerHelper {
         return max;
     }
 
-    private static int totalNestedJoins(RelNode rel) {
-        if (rel instanceof LogicalJoin) return 1 + totalNestedJoins(rel.getInput(0)) + totalNestedJoins(rel.getInput(1));
+    private static int totalJoins(RelNode rel) {
+        if (rel instanceof LogicalJoin) return 1 + totalJoins(rel.getInput(0)) + totalJoins(rel.getInput(1));
         int sum = 0;
         for (RelNode child : rel.getInputs()) {
-            sum += totalNestedJoins(child);
+            sum += totalJoins(child);
         }
         return sum;
     }
@@ -144,7 +144,7 @@ public class PlannerHelper {
             if (IgniteSystemProperties.getBoolean("MD_NEW_QUERY_PLANNER", false)) {
                 igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION_NO_JOIN, desired, rel);
                 try {
-                    if (maxNestedJoins(rel) <= 3 && totalNestedJoins(rel) <= 4) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
+                    if (maxNestedJoins(rel) <= 3 && totalJoins(rel) <= 4) igniteRel = planner.transform(PlannerPhase.PHYSICAL_OPTIMIZATION, desired, rel);
                 } catch (RelOptPlanner.CannotPlanException e) {
                     // This is a fallback, this planner is much quicker as it doesnt permute the join order
                     log.warning("Main planner failed. Using backup plan", e);
