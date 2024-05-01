@@ -1,7 +1,9 @@
 package org.apache.ignite.internal.processors.query.calcite.exec.cache;
 
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.QueryField;
@@ -27,13 +29,16 @@ public class ResultCache extends AbstractService {
     private static final long MAX_CACHE_SIZE = IgniteSystemProperties.getLong("MD_MAX_CACHE_SIZE_MB", 1024) * 1000000;
 
     /**  */
+    private final GridEventStorageManager events;
+
+    /**  */
     private long currentCacheSize;
 
     /** Cache lock */
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /** Rel Cache */
-    private final ArrayList<CacheEntry> cachedRels = new ArrayList<>();
+    private ArrayList<CacheEntry> cachedRels = new ArrayList<>();
 
     /**
      * @param ctx Kernal context.
@@ -42,13 +47,18 @@ public class ResultCache extends AbstractService {
         super(ctx);
 
         subscriptionProc = ctx.internalSubscriptionProcessor();
+        events = ctx.event();
 
         init();
     }
 
     /** {@inheritDoc} */
-    @Override public void init() {
+    @Override
+    public void init() {
         subscriptionProc.registerSchemaChangeListener(new ResultCache.SchemaListener());
+
+        // We only clear on FAILED or LEFT, a node joining does not change the data only its layout
+        events.addDiscoveryEventListener((evt, discoCache) -> clear(), EventType.EVT_NODE_FAILED, EventType.EVT_NODE_LEFT);
     }
 
     /**
@@ -118,7 +128,7 @@ public class ResultCache extends AbstractService {
     private void clear() {
         lock.writeLock().lock();
         try {
-            cachedRels.clear();
+            cachedRels = new ArrayList<>();
             InternalDebug.alwaysLog("Clearing result cache!");
         } finally {
             lock.writeLock().unlock();
@@ -146,12 +156,14 @@ public class ResultCache extends AbstractService {
     /** Schema change listener. */
     private class SchemaListener extends AbstractSchemaChangeListener {
         /** {@inheritDoc} */
-        @Override public void onSchemaDropped(String schemaName) {
+        @Override
+        public void onSchemaDropped(String schemaName) {
             clear();
         }
 
         /** {@inheritDoc} */
-        @Override public void onSqlTypeDropped(
+        @Override
+        public void onSqlTypeDropped(
             String schemaName,
             GridQueryTypeDescriptor typeDescriptor,
             boolean destroy
@@ -160,7 +172,8 @@ public class ResultCache extends AbstractService {
         }
 
         /** {@inheritDoc} */
-        @Override public void onIndexCreated(
+        @Override
+        public void onIndexCreated(
             String schemaName,
             String tblName,
             String idxName,
@@ -170,22 +183,26 @@ public class ResultCache extends AbstractService {
         }
 
         /** {@inheritDoc} */
-        @Override public void onIndexDropped(String schemaName, String tblName, String idxName) {
+        @Override
+        public void onIndexDropped(String schemaName, String tblName, String idxName) {
             clear();
         }
 
         /** {@inheritDoc} */
-        @Override public void onIndexRebuildStarted(String schemaName, String tblName) {
+        @Override
+        public void onIndexRebuildStarted(String schemaName, String tblName) {
             clear();
         }
 
         /** {@inheritDoc} */
-        @Override public void onIndexRebuildFinished(String schemaName, String tblName) {
+        @Override
+        public void onIndexRebuildFinished(String schemaName, String tblName) {
             clear();
         }
 
         /** {@inheritDoc} */
-        @Override public void onColumnsAdded(
+        @Override
+        public void onColumnsAdded(
             String schemaName,
             GridQueryTypeDescriptor typeDesc,
             GridCacheContextInfo<?, ?> cacheInfo,
@@ -195,7 +212,8 @@ public class ResultCache extends AbstractService {
         }
 
         /** {@inheritDoc} */
-        @Override public void onColumnsDropped(
+        @Override
+        public void onColumnsDropped(
             String schemaName,
             GridQueryTypeDescriptor typeDesc,
             GridCacheContextInfo<?, ?> cacheInfo,

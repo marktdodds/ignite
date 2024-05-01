@@ -21,9 +21,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.QueryField;
@@ -45,6 +46,9 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     private final GridInternalSubscriptionProcessor subscriptionProc;
 
     /** */
+    private final GridEventStorageManager event;
+
+    /** */
     private volatile Map<CacheKey, QueryPlan> cache;
 
     /**
@@ -55,6 +59,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
 
         cache = new GridBoundedConcurrentLinkedHashMap<>(CACHE_SIZE);
         subscriptionProc = ctx.internalSubscriptionProcessor();
+        event = ctx.event();
 
         init();
     }
@@ -62,6 +67,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     /** {@inheritDoc} */
     @Override public void init() {
         subscriptionProc.registerSchemaChangeListener(new SchemaListener());
+        event.addDiscoveryEventListener((evt, discoCache) -> clear(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_FAILED, EventType.EVT_NODE_LEFT);
     }
 
     /** {@inheritDoc} */
@@ -83,7 +89,7 @@ public class QueryPlanCacheImpl extends AbstractService implements QueryPlanCach
     /** {@inheritDoc} */
     @Override public QueryPlan queryPlan(CacheKey key) {
         if (IgniteSystemProperties.getBoolean("MD_CLEAR_QUERY_CACHE")) {
-            cache.clear();
+            clear();
             log.info("Query cache cleared!");
         }
         if (IgniteSystemProperties.getBoolean("MD_DISABLE_QUERY_CACHE", false)) {
