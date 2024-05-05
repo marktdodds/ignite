@@ -83,8 +83,7 @@ public class IgniteExchange extends Exchange implements IgniteRel {
 
         // If its not single we are sending to at 2+ nodes so apply the penalty
         if (!distribution.equals(IgniteDistributions.single())) {
-            int df = distributionFactor(getInput(), mq);
-            networkCost *= df > 1 ? df : IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
+            networkCost *= IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
             double exponent = IgniteSystemProperties.getDouble("MD_BROADCAST_LATENCY_PENALTY", 0);
             if (exponent >= 1) latencyPenalty = Math.pow(rowCount, exponent);
         }
