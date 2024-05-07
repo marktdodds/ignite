@@ -112,6 +112,7 @@ public enum PlannerPhase {
                 RuleSets.ofList(
                     FilterScanMergeRule.TABLE_SCAN_SKIP_CORRELATED,
 
+                    CoreRules.FILTER_CORRELATE,
                     CoreRules.FILTER_MERGE,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_SET_OP_TRANSPOSE,
