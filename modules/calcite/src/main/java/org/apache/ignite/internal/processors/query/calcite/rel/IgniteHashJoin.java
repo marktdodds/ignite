@@ -48,6 +48,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.internal.processors.query.calcite.externalize.RelJsonWriter;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
@@ -172,7 +173,7 @@ public class IgniteHashJoin extends AbstractIgniteJoin {
         return super.explainTerms(pw)
             .item("rightFilter", getRightFilterCondition())
             .item("rightRequiredColumns", getRightRequiredColumns())
-            .item("dist", distribution())
+            .itemIf("dist", distribution(), !(pw instanceof RelJsonWriter))
             ;
     }
 

@@ -39,9 +39,9 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.internal.processors.query.calcite.externalize.RelInputEx;
+import org.apache.ignite.internal.processors.query.calcite.externalize.RelJsonWriter;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
-import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
@@ -297,7 +297,7 @@ public class IgniteMergeJoin extends AbstractIgniteJoin {
         return super.explainTerms(pw)
             .item("leftCollation", leftCollation)
             .item("rightCollation", rightCollation)
-            .item("dist", distribution());
+            .itemIf("dist", distribution(), !(pw instanceof RelJsonWriter));
     }
 
     /**

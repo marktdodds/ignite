@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelInput;
 import org.apache.calcite.rel.RelNode;
@@ -38,9 +37,9 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.internal.processors.query.calcite.externalize.RelJsonWriter;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCost;
 import org.apache.ignite.internal.processors.query.calcite.metadata.cost.IgniteCostFactory;
-import org.apache.ignite.internal.processors.query.calcite.schema.IgniteCacheTable;
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.TraitUtils;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
@@ -145,6 +144,7 @@ public class IgniteNestedLoopJoin extends AbstractIgniteJoin {
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
+        if (pw instanceof RelJsonWriter) return super.explainTerms(pw);
         return super.explainTerms(pw)
             .item("dist", distribution());
     }
