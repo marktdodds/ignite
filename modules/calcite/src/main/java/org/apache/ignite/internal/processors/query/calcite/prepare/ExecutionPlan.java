@@ -238,7 +238,7 @@ public class ExecutionPlan {
         public IgniteRel visit(IgniteNestedLoopJoin rel) {
             IgniteRel left = new MultiThreadingReplacer(SourceControlType.DUPLICATOR).go((IgniteRel) rel.getLeft());
             if (left == null) return null;
-            IgniteRel right = rel.accept(this);
+            IgniteRel right = ((IgniteRel) rel.getRight()).accept(this);
             if (right == null) return null;
             return rel.clone(rel.getCluster(), F.asList(left, right));
         }
