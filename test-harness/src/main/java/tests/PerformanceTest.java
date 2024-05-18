@@ -308,7 +308,7 @@ public interface PerformanceTest {
         System.out.printf("Starting loading %s rows at id %s\n", count, startId);
         for (Bucket bucket : buckets) {
             double bucketTotal = Math.ceil(bucket.bucketTotal(count));
-            for (int i = 0; i < bucketTotal; i++) {
+            for (int i = 1; i <= bucketTotal; i++) {
                 stmt.setInt(1, id++);
                 stmt.setInt(2, bucket.bucketId());
                 setParams.accept(stmt);

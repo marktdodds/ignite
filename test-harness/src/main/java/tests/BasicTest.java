@@ -79,12 +79,13 @@ public class BasicTest implements PerformanceTest {
         int maxId;
         if (args.contains("--maxId")) maxId = Integer.parseInt(args.get(args.indexOf("--maxId") + 1));
         else {
-            maxId = 50;
+            maxId = countA;
         }
 
         System.out.printf("Max id: %s\n", maxId);
 
         PreparedStatement a = conn.prepareStatement("INSERT into table1 (id, cacheKey, joinKey, sid) VALUES (?, ?, ?, ?)");
+        conn.prepareStatement("SET STREAMING ON").execute();
         AtomicInteger sid = new AtomicInteger(0);
         populateTable(countA, aBuckets, a, stmt -> {
             try {
@@ -104,6 +105,7 @@ public class BasicTest implements PerformanceTest {
             }
         }, startId);
 
+        conn.prepareStatement("SET STREAMING OFF").execute();
         PreparedStatement check = conn.prepareStatement("SELECT count(*) from table1;");
         check.execute();
         ResultSet set = check.getResultSet();
