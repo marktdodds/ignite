@@ -5,7 +5,7 @@ import java.util.List;
 public class CartesianProductJoinTest extends BasicTest {
 
     public static void main(String[] args) throws ClassNotFoundException {
-        new JoinOnPartitionKeyTest().run(args);
+        new CartesianProductJoinTest().run(args);
     }
 
     @Override
