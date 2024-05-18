@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.rel;
 
+import java.util.LinkedList;
 import java.util.List;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
@@ -29,6 +30,7 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.util.Pair;
+import org.apache.ignite.internal.processors.query.calcite.exec.InboxController;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -39,10 +41,13 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
     private final long exchangeId;
 
     /** */
-    private final long sourceFragmentId;
+    private List<Long> senderFragmentIds;
 
     /** */
     private final RelCollation collation;
+
+    /** */
+    private final InboxController.SourceControlType controlType;
 
     /**
      * Creates a Receiver
@@ -52,9 +57,9 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
         RelTraitSet traits,
         RelDataType rowType,
         long exchangeId,
-        long sourceFragmentId
+        List<Long> senderFragmentIds
     ) {
-        this(cluster, traits, rowType, exchangeId, sourceFragmentId, traits.getCollation());
+        this(cluster, traits, rowType, exchangeId, senderFragmentIds, traits.getCollation(), InboxController.SourceControlType.DUPLICATOR);
     }
 
     /** */
@@ -64,8 +69,9 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
             input.getTraitSet().replace(IgniteConvention.INSTANCE),
             input.getRowType("rowType"),
             ((Number)input.get("exchangeId")).longValue(),
-            ((Number)input.get("sourceFragmentId")).longValue(),
-            input.getCollation()
+            (List<Long>) input.get("senderFragmentIds"),
+            input.getCollation(),
+            input.getEnum("controlType", InboxController.SourceControlType.class)
         );
     }
 
@@ -75,15 +81,16 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
         RelTraitSet traits,
         RelDataType rowType,
         long exchangeId,
-        long sourceFragmentId,
-        RelCollation collation
-    ) {
+        List<Long> senderFragmentIds,
+        RelCollation collation,
+        InboxController.SourceControlType controlType) {
         super(cluster, traits);
 
         this.exchangeId = exchangeId;
-        this.sourceFragmentId = sourceFragmentId;
+        this.senderFragmentIds = senderFragmentIds;
         this.rowType = rowType;
         this.collation = collation;
+        this.controlType = controlType;
     }
 
     /** */
@@ -92,8 +99,8 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
     }
 
     /** */
-    public long sourceFragmentId() {
-        return sourceFragmentId;
+    public List<Long> senderFragmentIds() {
+        return senderFragmentIds;
     }
 
     /** */
@@ -103,7 +110,7 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
 
     /** {@inheritDoc} */
     @Override public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new IgniteReceiver(getCluster(), traitSet, rowType, exchangeId, sourceFragmentId, collation);
+        return new IgniteReceiver(getCluster(), traitSet, rowType, exchangeId, senderFragmentIds, collation, controlType);
     }
 
     /** {@inheritDoc} */
@@ -121,7 +128,8 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
         return writer
             .item("rowType", rowType)
             .item("exchangeId", exchangeId)
-            .item("sourceFragmentId", sourceFragmentId)
+            .item("senderFragmentIds", senderFragmentIds)
+            .itemIf("controlType", controlType, controlType != null)
             .itemIf("collation", collation, collation != null && collation != RelCollations.EMPTY);
     }
 
@@ -141,6 +149,28 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
 
     /** {@inheritDoc} */
     @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new IgniteReceiver(cluster, getTraitSet(), rowType, exchangeId, sourceFragmentId, collation);
+        return new IgniteReceiver(cluster, getTraitSet(), rowType, exchangeId, senderFragmentIds, collation, controlType);
+    }
+
+    /**
+     * Clones the receiver under a new control type
+     */
+    public IgniteReceiver clone(InboxController.SourceControlType controlType) {
+        return new IgniteReceiver(getCluster(), getTraitSet(), rowType, exchangeId, senderFragmentIds, collation, controlType);
+    }
+
+    /** */
+    public void clearSenderFragmentIds() {
+        this.senderFragmentIds = new LinkedList<>();
+    }
+
+    /** */
+    public void addSenderFragmentId(Long l) {
+        this.senderFragmentIds.add(l);
+    }
+
+    /** */
+    public @Nullable InboxController.SourceControlType inboxControlType() {
+        return controlType;
     }
 }

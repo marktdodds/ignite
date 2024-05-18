@@ -44,6 +44,7 @@ import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentDesc
 import org.apache.ignite.internal.processors.query.calcite.prepare.AbstractQueryContext;
 import org.apache.ignite.internal.processors.query.calcite.prepare.BaseDataContext;
 import org.apache.ignite.internal.processors.query.calcite.prepare.BaseQueryContext;
+import org.apache.ignite.internal.processors.query.calcite.prepare.NodeIdFragmentIdPair;
 import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactory;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.processors.query.calcite.util.TypeUtils;
@@ -172,6 +173,22 @@ public class ExecutionContext<Row> extends AbstractQueryContext implements DataC
         return fragmentDesc.fragmentId();
     }
 
+    public int totalVariants() {
+        return fragmentDesc.totalVariants();
+    }
+
+    public int variantId() {
+        return fragmentDesc.variantId();
+    }
+
+    /**
+     * Checks if something should process an input row based on a counter % totalThreadCount = this fragments thread id.
+     * Up to the caller to choose a valid {basedOn} to ensure correctness.
+     */
+    public boolean shouldProcess(int basedOn) {
+        return fragmentDesc.totalVariants() <= 1 || basedOn % fragmentDesc.totalVariants() == fragmentDesc.variantId();
+    }
+
     /**
      * @return Target mapping.
      */
@@ -180,7 +197,7 @@ public class ExecutionContext<Row> extends AbstractQueryContext implements DataC
     }
 
     /** */
-    public List<UUID> remotes(long exchangeId) {
+    public List<NodeIdFragmentIdPair> remotes(long exchangeId) {
         return fragmentDesc.remotes().get(exchangeId);
     }
 

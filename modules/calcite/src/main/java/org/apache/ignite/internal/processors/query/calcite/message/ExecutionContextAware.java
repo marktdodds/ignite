@@ -29,7 +29,8 @@ public interface ExecutionContextAware extends CalciteMessage {
     UUID queryId();
 
     /**
-     * @return Fragment ID.
+     * @return The id of the fragment to execute the message handler in. Set by the sender, can be anything.
+     *         Do not assume this is the same as the fragment a message is eventually destined for.
      */
-    long fragmentId();
+    long executorFragmentId();
 }

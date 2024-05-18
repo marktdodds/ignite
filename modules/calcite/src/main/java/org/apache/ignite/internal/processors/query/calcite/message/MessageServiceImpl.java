@@ -251,7 +251,7 @@ public class MessageServiceImpl extends AbstractService implements MessageServic
     protected void onMessage(UUID nodeId, CalciteMessage msg) {
         if (msg instanceof ExecutionContextAware) {
             ExecutionContextAware msg0 = (ExecutionContextAware)msg;
-            taskExecutor().execute(msg0.queryId(), msg0.fragmentId(), () -> onMessageInternal(nodeId, msg));
+            taskExecutor().execute(msg0.queryId(), msg0.executorFragmentId(), () -> onMessageInternal(nodeId, msg));
         }
         else
             taskExecutor().execute(

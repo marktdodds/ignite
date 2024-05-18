@@ -31,10 +31,10 @@ public class QueryBatchAcknowledgeMessage implements ExecutionContextAware {
     private UUID queryId;
 
     /** */
-    private long fragmentId;
+    private long exchangeId;
 
     /** */
-    private long exchangeId;
+    private long outboxFragmentId;
 
     /** */
     private int batchId;
@@ -45,10 +45,10 @@ public class QueryBatchAcknowledgeMessage implements ExecutionContextAware {
     }
 
     /** */
-    public QueryBatchAcknowledgeMessage(UUID queryId, long fragmentId, long exchangeId, int batchId) {
+    public QueryBatchAcknowledgeMessage(UUID queryId, long exchangeId, long outboxFragmentId, int batchId) {
         this.queryId = queryId;
-        this.fragmentId = fragmentId;
         this.exchangeId = exchangeId;
+        this.outboxFragmentId = outboxFragmentId;
         this.batchId = batchId;
     }
 
@@ -58,8 +58,8 @@ public class QueryBatchAcknowledgeMessage implements ExecutionContextAware {
     }
 
     /** {@inheritDoc} */
-    @Override public long fragmentId() {
-        return fragmentId;
+    @Override public long executorFragmentId() {
+        return outboxFragmentId;
     }
 
     /**
@@ -101,7 +101,7 @@ public class QueryBatchAcknowledgeMessage implements ExecutionContextAware {
                 writer.incrementState();
 
             case 2:
-                if (!writer.writeLong("fragmentId", fragmentId))
+                if (!writer.writeLong("outboxFragmentId", outboxFragmentId))
                     return false;
 
                 writer.incrementState();
@@ -142,7 +142,7 @@ public class QueryBatchAcknowledgeMessage implements ExecutionContextAware {
                 reader.incrementState();
 
             case 2:
-                fragmentId = reader.readLong("fragmentId");
+                outboxFragmentId = reader.readLong("outboxFragmentId");
 
                 if (!reader.isLastRead())
                     return false;
@@ -169,6 +169,11 @@ public class QueryBatchAcknowledgeMessage implements ExecutionContextAware {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 4;
+        return 5;
+    }
+
+    /** */
+    public long outboxFragmentId() {
+        return outboxFragmentId;
     }
 }

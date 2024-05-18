@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.query.calcite.prepare;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 
 /** */
@@ -48,5 +49,10 @@ public class FragmentPlan extends AbstractQueryPlan {
     /** {@inheritDoc} */
     @Override public QueryPlan copy() {
         return this;
+    }
+
+    public long exchangeId() {
+        assert root instanceof IgniteSender;
+        return ((IgniteSender) root).exchangeId();
     }
 }

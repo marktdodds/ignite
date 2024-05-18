@@ -363,8 +363,8 @@ public class RootQuery<RowT> extends Query<RowT> implements TrackableQuery {
     }
 
     /** */
-    public void onResponse(UUID nodeId, long fragmentId, Throwable error) {
-        onResponse(new RemoteFragmentKey(nodeId, fragmentId), error);
+    public void onResponse(UUID nodeId, long outboxFragmentId, Throwable error) {
+        onResponse(new RemoteFragmentKey(nodeId, outboxFragmentId), error);
     }
 
     /** */
@@ -390,12 +390,12 @@ public class RootQuery<RowT> extends Query<RowT> implements TrackableQuery {
     }
 
     /** {@inheritDoc} */
-    @Override public void onInboundExchangeStarted(UUID nodeId, long exchangeId) {
-        onResponse(nodeId, exchangeId, null);
+    @Override public void onInboundExchangeStarted(UUID nodeId, long outboxFragmentId) {
+        onResponse(nodeId, outboxFragmentId, null);
     }
 
     /** {@inheritDoc} */
-    @Override public void onInboundExchangeFinished(UUID nodeId, long exchangeId) {
+    @Override public void onInboundExchangeFinished(UUID nodeId, long outboxFragmentId) {
         AtomicInteger cnt = remoteFragments.get(nodeId);
 
         assert cnt != null : nodeId;

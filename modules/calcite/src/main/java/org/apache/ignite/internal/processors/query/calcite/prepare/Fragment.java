@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
+import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
@@ -24,6 +25,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -66,25 +69,38 @@ public class Fragment {
     private final FragmentMapping mapping;
 
     /** */
-    private final ImmutableList<IgniteReceiver> remotes;
+    private final ImmutableList<IgniteReceiver> receivers;
+
+    private final Collection<Long> receiverExchangeIds;
+
+    /** */
+    private final int totalVariants;
+
+    /** */
+    private final int variantId;
 
     /**
      * @param id Fragment id.
      * @param root Root node of the fragment.
-     * @param remotes Remote sources of the fragment.
+     * @param receivers Remote sources of the fragment.
      */
-    public Fragment(long id, IgniteRel root, List<IgniteReceiver> remotes) {
-        this(id, root, remotes, null, null);
+    public Fragment(long id, IgniteRel root, List<IgniteReceiver> receivers) {
+        this(id, root, receivers, null, null, 1, 0);
     }
 
     /** */
-    Fragment(long id, IgniteRel root, List<IgniteReceiver> remotes, @Nullable String rootSer, @Nullable FragmentMapping mapping) {
+    Fragment(long id, IgniteRel root, List<IgniteReceiver> receivers, @Nullable String rootSer, @Nullable FragmentMapping mapping, int totalVariants, int variantId) {
         this.id = id;
         this.root = root;
-        this.remotes = ImmutableList.copyOf(remotes);
+        this.receivers = ImmutableList.copyOf(receivers);
+        this.receiverExchangeIds = receivers.stream().map(IgniteReceiver::exchangeId).collect(Collectors.toSet());
         this.rootSer = rootSer != null ? rootSer : toJson(root);
         this.mapping = mapping;
+        this.totalVariants = totalVariants;
+        this.variantId = variantId;
     }
+
+
 
     /**
      * @return Fragment ID.
@@ -117,13 +133,31 @@ public class Fragment {
     /**
      * @return Fragment remote sources.
      */
-    public List<IgniteReceiver> remotes() {
-        return remotes;
+    public List<IgniteReceiver> receivers() {
+        return receivers;
+    }
+
+    /**
+     * Whether the fragment is a receiver for an exchange. Logically equivalent to
+     * @returns boolean logically equivalent to {@code receivers().anyMatch(r -> r.exchangeId() == exchangeId)}
+     */
+    public boolean isReceiverForExchange(long exchangeId) {
+        return receiverExchangeIds.contains(exchangeId);
     }
 
     /** */
     public boolean rootFragment() {
         return !(root instanceof IgniteSender);
+    }
+
+    /** */
+    public int totalVariants() {
+        return totalVariants;
+    }
+
+    /** */
+    public int variantId() {
+        return variantId;
     }
 
     /** */
@@ -133,7 +167,23 @@ public class Fragment {
 
     /** */
     public Fragment filterByPartitions(int[] parts) throws ColocationMappingException {
-        return new Fragment(id, root, remotes, rootSer, mapping.filterByPartitions(parts));
+        return new Fragment(id, root, receivers, rootSer, mapping.filterByPartitions(parts), totalVariants, variantId);
+    }
+
+    /**
+     * Updates the rel of a Fragment. Used to create multithreading plans where
+     * fragments are duplicated and small changes are made to the execution tree.
+     * @return A fragment with a new id and the new root. Remotes and rootSer are uninitialized and left for caller
+     */
+    public Fragment multiThreaded(IgniteRel newRoot, List<IgniteReceiver> remotes, int totalVariants, int variantId) {
+        return new Fragment(IdGenerator.nextId(), newRoot, remotes, "", mapping, totalVariants, variantId);
+    }
+
+    /**
+     * Copies the fragment but reloads the serialization in cases where the referenced { root } has changed
+     */
+    public Fragment redoSerialization() {
+        return new Fragment(id, root, receivers, null, mapping, totalVariants, variantId);
     }
 
     /**
@@ -145,7 +195,7 @@ public class Fragment {
         if (mapping != null)
             return this;
 
-        return new Fragment(id, root, remotes, rootSer, mapping(ctx, mq, nodesSource(mappingSrvc, ctx)));
+        return new Fragment(id, root, receivers, rootSer, mapping(ctx, mq, nodesSource(mappingSrvc, ctx)), totalVariants, variantId);
     }
 
     /**
@@ -153,7 +203,7 @@ public class Fragment {
      * @param mapping The new mapping to apply
      */
     Fragment remap(FragmentMapping mapping) {
-        return new Fragment(id, root, remotes, rootSer, mapping);
+        return new Fragment(id, root, receivers, rootSer, mapping, totalVariants, variantId);
     }
 
     /** */

@@ -18,16 +18,16 @@
 package org.apache.ignite.internal.processors.query.calcite.metadata;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 import org.apache.ignite.internal.GridDirectMap;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.processors.query.calcite.message.MarshalableMessage;
 import org.apache.ignite.internal.processors.query.calcite.message.MarshallingContext;
 import org.apache.ignite.internal.processors.query.calcite.message.MessageType;
-import org.apache.ignite.internal.util.UUIDCollectionMessage;
+import org.apache.ignite.internal.processors.query.calcite.prepare.NodeIdFragmentIdPair;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
@@ -47,11 +47,17 @@ public class FragmentDescription implements MarshalableMessage {
 
     /** */
     @GridDirectTransient
-    private Map<Long, List<UUID>> remoteSources;
+    private Map<Long, List<NodeIdFragmentIdPair>> remoteSources;
 
     /** */
     @GridDirectMap(keyType = Long.class, valueType = Message.class)
-    private Map<Long, UUIDCollectionMessage> remoteSources0;
+    private Map<Long, NodeIdFragmentIdPair.MarshallableCollectionMessage> remoteSources0;
+
+    /** */
+    private int totalVariants;
+
+    /** */
+    private int variantId;
 
     /** */
     public FragmentDescription() {
@@ -59,11 +65,13 @@ public class FragmentDescription implements MarshalableMessage {
 
     /** */
     public FragmentDescription(long fragmentId, FragmentMapping mapping, ColocationGroup target,
-        Map<Long, List<UUID>> remoteSources) {
+                               Map<Long, List<NodeIdFragmentIdPair>> remoteSources, int totalVariants, int variantId) {
         this.fragmentId = fragmentId;
         this.mapping = mapping;
         this.target = target;
         this.remoteSources = remoteSources;
+        this.totalVariants = totalVariants;
+        this.variantId = variantId;
     }
 
     /** */
@@ -81,8 +89,18 @@ public class FragmentDescription implements MarshalableMessage {
         return target;
     }
 
+    /**  */
+    public int totalVariants() {
+        return totalVariants;
+    }
+
+    /**  */
+    public int variantId() {
+        return variantId;
+    }
+
     /** */
-    public Map<Long, List<UUID>> remotes() {
+    public Map<Long, List<NodeIdFragmentIdPair>> remotes() {
         return remoteSources;
     }
 
@@ -132,6 +150,18 @@ public class FragmentDescription implements MarshalableMessage {
 
                 writer.incrementState();
 
+            case 4:
+                if (!writer.writeInt("totalVariants", totalVariants))
+                    return false;
+
+                writer.incrementState();
+
+            case 5:
+                if (!writer.writeInt("variantId", variantId))
+                    return false;
+
+                writer.incrementState();
+
         }
 
         return true;
@@ -177,6 +207,22 @@ public class FragmentDescription implements MarshalableMessage {
 
                 reader.incrementState();
 
+            case 4:
+                totalVariants = reader.readInt("totalVariants");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
+            case 5:
+                variantId = reader.readInt("variantId");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
         }
 
         return reader.afterMessageRead(FragmentDescription.class);
@@ -184,7 +230,7 @@ public class FragmentDescription implements MarshalableMessage {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 4;
+        return 6;
     }
 
     /** {@inheritDoc} */
@@ -198,8 +244,8 @@ public class FragmentDescription implements MarshalableMessage {
         if (remoteSources0 == null && remoteSources != null) {
             remoteSources0 = U.newHashMap(remoteSources.size());
 
-            for (Map.Entry<Long, List<UUID>> e : remoteSources.entrySet())
-                remoteSources0.put(e.getKey(), new UUIDCollectionMessage(e.getValue()));
+            for (Map.Entry<Long, List<NodeIdFragmentIdPair>> e : remoteSources.entrySet())
+                remoteSources0.put(e.getKey(), new NodeIdFragmentIdPair.MarshallableCollectionMessage(e.getValue()));
         }
     }
 
@@ -214,8 +260,8 @@ public class FragmentDescription implements MarshalableMessage {
         if (remoteSources == null && remoteSources0 != null) {
             remoteSources = U.newHashMap(remoteSources0.size());
 
-            for (Map.Entry<Long, UUIDCollectionMessage> e : remoteSources0.entrySet())
-                remoteSources.put(e.getKey(), new ArrayList<>(e.getValue().uuids()));
+            for (Map.Entry<Long, NodeIdFragmentIdPair.MarshallableCollectionMessage> e : remoteSources0.entrySet())
+                remoteSources.put(e.getKey(), e.getValue().keys());
         }
     }
 }

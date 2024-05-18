@@ -180,7 +180,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
         // Outbox fragment ID is used as exchange ID as well.
         Outbox<Row> outbox =
-            new Outbox<>(ctx, rel.getRowType(), exchangeSvc, mailboxRegistry, rel.exchangeId(), rel.targetFragmentId(), dest);
+            new Outbox<>(ctx, rel.getRowType(), exchangeSvc, mailboxRegistry, rel.exchangeId(), dest);
 
         Node<Row> input = visit(rel.getInput());
 
@@ -394,7 +394,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         if (idx != null && !tbl.isIndexRebuildInProgress()) {
             Iterable<Row> rowsIter = idx.scan(ctx, grp, ranges, requiredColumns);
 
-            return new ScanStorageNode<>(idx.name(), ctx, rowType, rowsIter, filters, prj);
+            return new ScanStorageNode<>(idx.name(), ctx, rowType, rowsIter, filters, prj, false);
         } else {
             // Index was invalidated after planning, workaround through table-scan -> sort -> index spool.
             // If there are correlates in filter or project, spool node is required to provide ability to rewind input.
@@ -418,7 +418,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
                 rowType = rel.getRowType();
 
             Node<Row> node = new ScanStorageNode<>(tbl.name(), ctx, rowType, rowsIter, filterHasCorrelation ? null : filters,
-                projNodeRequired ? null : prj);
+                projNodeRequired ? null : prj, false);
 
             RelCollation collation = rel.collation();
 
@@ -517,7 +517,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
             Iterable<Row> rowsIter = tbl.scan(ctx, grp, idxBndRel.requiredColumns());
 
             Node<Row> scanNode = new ScanStorageNode<>(tbl.name(), ctx, rowType, rowsIter,
-                r -> ctx.rowHandler().get(0, r) != null, null);
+                r -> ctx.rowHandler().get(0, r) != null, null, false);
 
             RelCollation collation = idx.collation().apply(LogicalScanConverterRule.createMapping(
                 null,
@@ -562,7 +562,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
         Iterable<Row> rowsIter = tbl.scan(ctx, group, requiredColunms);
 
-        return new ScanStorageNode<>(tbl.name(), ctx, rowType, rowsIter, filters, prj);
+        return new ScanStorageNode<>(tbl.name(), ctx, rowType, rowsIter, filters, prj, rel.isThreadedSplitter());
     }
 
     /** {@inheritDoc} */
@@ -740,8 +740,10 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
     /** {@inheritDoc} */
     @Override
     public Node<Row> visit(IgniteReceiver rel) {
+        mailboxRegistry.initializeController(ctx.queryId(), rel.exchangeId(), rel.inboxControlType(), ctx.totalVariants());
+
         Inbox<Row> inbox = (Inbox<Row>) mailboxRegistry.register(
-            new Inbox<>(ctx, exchangeSvc, mailboxRegistry, rel.exchangeId(), rel.sourceFragmentId()));
+            new Inbox<>(ctx, exchangeSvc, mailboxRegistry, rel.exchangeId()));
 
         // here may be an already created (to consume rows from remote nodes) inbox
         // without proper context, we need to init it with a right one.

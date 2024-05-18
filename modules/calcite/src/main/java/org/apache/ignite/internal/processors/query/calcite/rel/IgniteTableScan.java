@@ -39,6 +39,8 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
     /**  */
     private final long sourceId;
 
+    private final boolean isThreadedSplitter;
+
     /**
      * Constructor used for deserialization.
      *
@@ -52,6 +54,8 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
             sourceId = ((Number) srcIdObj).longValue();
         else
             sourceId = -1;
+
+        isThreadedSplitter = input.getBoolean("isThreadedSplitter", false);
     }
 
     /**
@@ -87,7 +91,7 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
         @Nullable RexNode cond,
         @Nullable ImmutableBitSet requiredColunms
     ) {
-        this(-1L, cluster, traits, tbl, proj, cond, requiredColunms);
+        this(-1L, cluster, traits, tbl, proj, cond, requiredColunms, false);
     }
 
     /**
@@ -98,7 +102,8 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
      * @param tbl             Table definition.
      * @param proj            Projects.
      * @param cond            Filters.
-     * @param requiredColunms Participating colunms.
+     * @param requiredColumns Participating colunms.
+     * @param isThreadedSplitter
      */
     private IgniteTableScan(
         long sourceId,
@@ -107,10 +112,11 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
         RelOptTable tbl,
         @Nullable List<RexNode> proj,
         @Nullable RexNode cond,
-        @Nullable ImmutableBitSet requiredColunms
-    ) {
-        super(cluster, traits, ImmutableList.of(), tbl, proj, cond, requiredColunms);
+        @Nullable ImmutableBitSet requiredColumns,
+        boolean isThreadedSplitter) {
+        super(cluster, traits, ImmutableList.of(), tbl, proj, cond, requiredColumns);
         this.sourceId = sourceId;
+        this.isThreadedSplitter = isThreadedSplitter;
     }
 
     /**  */
@@ -123,12 +129,8 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
     @Override
     protected RelWriter explainTerms0(RelWriter pw) {
         return super.explainTerms0(pw)
+            .item("isThreadedSplitter", isThreadedSplitter)
             .itemIf("sourceId", sourceId, sourceId != -1);
-    }
-
-    @Override
-    public IgniteTableScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
-        return new IgniteTableScan(sourceId, getCluster(), traitSet, table, projects, condition, requiredColumns);
     }
 
     /** {@inheritDoc} */
@@ -137,16 +139,32 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
         return visitor.visit(this);
     }
 
+    @Override
+    public IgniteTableScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
+        return new IgniteTableScan(sourceId, getCluster(), traitSet, table, projects, condition, requiredColumns, isThreadedSplitter);
+    }
+
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(long sourceId) {
-        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns);
+        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns, isThreadedSplitter);
     }
 
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new IgniteTableScan(sourceId, cluster, getTraitSet(), getTable(), projects, condition, requiredColumns);
+        return new IgniteTableScan(sourceId, cluster, getTraitSet(), getTable(), projects, condition, requiredColumns, isThreadedSplitter);
+    }
+
+    /**
+     * Clones relative to a multithreaded config
+     */
+    public IgniteTableScan clone(boolean isThreadedSplitter) {
+        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns, isThreadedSplitter);
+    }
+
+    public boolean isThreadedSplitter() {
+        return isThreadedSplitter;
     }
 
     @Override

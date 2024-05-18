@@ -38,8 +38,7 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
     /**  */
     private UUID qryId;
 
-    /**  */
-    private long fragmentId;
+    private long outboxFragmentId;
 
     /**  */
     private long exchangeId;
@@ -66,9 +65,9 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
     }
 
     /**  */
-    public QueryBatchMessage(UUID qryId, long fragmentId, long exchangeId, int batchId, boolean last, List<Object> rows, RelDataType rowType) {
+    public QueryBatchMessage(UUID qryId, long outboxFragmentId, long exchangeId, int batchId, boolean last, List<Object> rows, RelDataType rowType) {
         this.qryId = qryId;
-        this.fragmentId = fragmentId;
+        this.outboxFragmentId = outboxFragmentId;
         this.exchangeId = exchangeId;
         this.batchId = batchId;
         this.last = last;
@@ -84,8 +83,12 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
     /** {@inheritDoc} */
     @Override
-    public long fragmentId() {
-        return fragmentId;
+    public long executorFragmentId() {
+        return exchangeId;
+    }
+
+    public long outboxFragmentId() {
+        return outboxFragmentId;
     }
 
     /**
@@ -180,32 +183,32 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
                 writer.incrementState();
 
             case 2:
-                if (!writer.writeLong("fragmentId", fragmentId))
-                    return false;
-
-                writer.incrementState();
-
-            case 3:
                 if (!writer.writeBoolean("last", last))
                     return false;
 
                 writer.incrementState();
 
-            case 4:
+            case 3:
                 if (!writer.writeCollection("mRows", mRows, MessageCollectionItemType.MSG))
                     return false;
 
                 writer.incrementState();
 
-            case 5:
+            case 4:
                 if (!writer.writeUuid("queryId", qryId))
                     return false;
 
                 writer.incrementState();
 
 
-            case 6:
+            case 5:
                 if (!writer.writeIntArray("marshallableType", marshallableType))
+                    return false;
+
+                writer.incrementState();
+
+            case 6:
+                if (!writer.writeLong("outboxFragmentId", outboxFragmentId))
                     return false;
 
                 writer.incrementState();
@@ -241,14 +244,6 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
                 reader.incrementState();
 
             case 2:
-                fragmentId = reader.readLong("fragmentId");
-
-                if (!reader.isLastRead())
-                    return false;
-
-                reader.incrementState();
-
-            case 3:
                 last = reader.readBoolean("last");
 
                 if (!reader.isLastRead())
@@ -256,7 +251,7 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
                 reader.incrementState();
 
-            case 4:
+            case 3:
                 mRows = reader.readCollection("mRows", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
@@ -264,7 +259,7 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
                 reader.incrementState();
 
-            case 5:
+            case 4:
                 qryId = reader.readUuid("queryId");
 
                 if (!reader.isLastRead())
@@ -272,7 +267,7 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
                 reader.incrementState();
 
-            case 6:
+            case 5:
                 marshallableType = reader.readIntArray("marshallableType");
 
                 if (!reader.isLastRead())
@@ -280,6 +275,13 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
 
                 reader.incrementState();
 
+            case 6:
+                outboxFragmentId = reader.readLong("outboxFragmentId");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
         }
 
         return reader.afterMessageRead(QueryBatchMessage.class);

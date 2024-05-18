@@ -217,14 +217,14 @@ public class Query<RowT> {
     /**
      * Callback after the first batch of the query fragment from the node is received.
      */
-    public void onInboundExchangeStarted(UUID nodeId, long exchangeId) {
+    public void onInboundExchangeStarted(UUID nodeId, long outboxFragmentId) {
         // No-op.
     }
 
     /**
      * Callback after the last batch of the query fragment from the node is processed.
      */
-    public void onInboundExchangeFinished(UUID nodeId, long exchangeId) {
+    public void onInboundExchangeFinished(UUID nodeId, long outboxFragmentId) {
         // No-op.
     }
 

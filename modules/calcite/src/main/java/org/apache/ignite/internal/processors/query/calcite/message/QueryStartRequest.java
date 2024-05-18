@@ -111,7 +111,7 @@ public class QueryStartRequest implements MarshalableMessage, ExecutionContextAw
     }
 
     /** {@inheritDoc} */
-    @Override public long fragmentId() {
+    @Override public long executorFragmentId() {
         return fragmentDesc.fragmentId();
     }
 

@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
@@ -142,9 +144,10 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
     }
 
     /** {@inheritDoc} */
-    @Override public <Row> void sendBatch(UUID nodeId, UUID qryId, long fragmentId, long exchangeId, int batchId,
-                                          boolean last, List<Row> rows, RelDataType rowType) throws IgniteCheckedException {
-        messageService().send(nodeId, new QueryBatchMessage(qryId, fragmentId, exchangeId, batchId, last, Commons.cast(rows), rowType));
+    @Override
+    public <Row> void sendBatch(UUID nodeId, UUID qryId, long outboxFragmentId, long exchangeId, int batchId,
+                                boolean last, List<Row> rows, RelDataType rowType) throws IgniteCheckedException {
+        messageService().send(nodeId, new QueryBatchMessage(qryId, outboxFragmentId, exchangeId, batchId, last, Commons.cast(rows), rowType));
 
         if (batchId == 0) {
             Query<?> qry = qryRegistry.query(qryId);
@@ -155,9 +158,9 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
     }
 
     /** {@inheritDoc} */
-    @Override public void acknowledge(UUID nodeId, UUID qryId, long fragmentId, long exchangeId, int batchId)
+    @Override public void acknowledge(UUID nodeId, UUID qryId, long outboxFragmentId, long exchangeId, int batchId)
         throws IgniteCheckedException {
-        messageService().send(nodeId, new QueryBatchAcknowledgeMessage(qryId, fragmentId, exchangeId, batchId));
+        messageService().send(nodeId, new QueryBatchAcknowledgeMessage(qryId, exchangeId, outboxFragmentId, batchId));
     }
 
     /** {@inheritDoc} */
@@ -166,8 +169,8 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
     }
 
     /** {@inheritDoc} */
-    @Override public void closeInbox(UUID nodeId, UUID qryId, long fragmentId, long exchangeId) throws IgniteCheckedException {
-        messageService().send(nodeId, new InboxCloseMessage(qryId, fragmentId, exchangeId));
+    @Override public void closeInbox(UUID nodeId, UUID qryId, long outboxFragmentId, long exchangeId) throws IgniteCheckedException {
+        messageService().send(nodeId, new InboxCloseMessage(qryId, outboxFragmentId, exchangeId));
     }
 
     /** {@inheritDoc} */
@@ -211,21 +214,23 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
     }
 
     /** {@inheritDoc} */
-    @Override public void onInboundExchangeFinished(UUID nodeId, UUID qryId, long exchangeId) {
+    @Override
+    public void onInboundExchangeFinished(UUID nodeId, UUID qryId, long outboxFragmentId) {
         Query<?> qry = qryRegistry.query(qryId);
 
         if (qry != null)
-            qry.onInboundExchangeFinished(nodeId, exchangeId);
+            qry.onInboundExchangeFinished(nodeId, outboxFragmentId);
     }
 
     /** {@inheritDoc} */
-    @Override public UUID localNodeId() {
+    @Override
+    public UUID localNodeId() {
         return locaNodeId;
     }
 
     /** */
     protected void onMessage(UUID nodeId, InboxCloseMessage msg) {
-        Collection<Inbox<?>> inboxes = mailboxRegistry().inboxes(msg.queryId(), msg.fragmentId(), msg.exchangeId());
+        Collection<Inbox<?>> inboxes = mailboxRegistry().inboxes(msg.queryId(), msg.exchangeId());
 
         if (!F.isEmpty(inboxes)) {
             for (Inbox<?> inbox : inboxes)
@@ -235,7 +240,7 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
             log.debug("Stale inbox cancel message received: [" +
                 "nodeId=" + nodeId +
                 ", queryId=" + msg.queryId() +
-                ", fragmentId=" + msg.fragmentId() +
+                ", fragmentId=" + msg.outboxFragmentId() +
                 ", exchangeId=" + msg.exchangeId() + "]");
         }
     }
@@ -247,7 +252,7 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
         if (qry != null)
             qry.cancel();
         else {
-            for (Inbox<?> inbox : mailboxRegistry().inboxes(msg.queryId(), -1, -1))
+            for (Inbox<?> inbox : mailboxRegistry().inboxes(msg.queryId()))
                 mailboxRegistry().unregister(inbox);
 
             if (log.isDebugEnabled()) {
@@ -260,84 +265,109 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
 
     /** */
     protected void onMessage(UUID nodeId, QueryBatchAcknowledgeMessage msg) {
-        Outbox<?> outbox = mailboxRegistry().outbox(msg.queryId(), msg.exchangeId());
+        Outbox<?> outbox = mailboxRegistry().outbox(msg.queryId(), msg.exchangeId(), msg.outboxFragmentId());
 
         if (outbox != null) {
             try {
                 outbox.onAcknowledge(nodeId, msg.batchId());
-            }
-            catch (Throwable e) {
+            } catch (Throwable e) {
                 outbox.onError(e);
 
                 throw new IgniteException("Unexpected exception", e);
             }
-        }
-        else if (log.isDebugEnabled()) {
+        } else if (log.isDebugEnabled()) {
             log.debug("Stale acknowledge message received: [" +
                 "nodeId=" + nodeId + ", " +
                 "queryId=" + msg.queryId() + ", " +
-                "fragmentId=" + msg.fragmentId() + ", " +
+                "outboxFragmentId=" + msg.outboxFragmentId() + ", " +
                 "exchangeId=" + msg.exchangeId() + ", " +
                 "batchId=" + msg.batchId() + "]");
         }
     }
 
-    /** */
+    /**  */
     protected void onMessage(UUID nodeId, QueryBatchMessage msg) {
-        Inbox<?> inbox = mailboxRegistry().inbox(msg.queryId(), msg.exchangeId());
+        InboxController inboxCtl = mailboxRegistry().inboxController(msg.queryId(), msg.exchangeId());
 
-        if (inbox == null && msg.batchId() == 0) {
+        if (inboxCtl == null && msg.batchId() == 0) {
             // first message sent before a fragment is built
-            // note that an inbox source fragment id is also used as an exchange id
-            Inbox<?> newInbox = new Inbox<>(baseInboxContext(nodeId, msg.queryId(), msg.fragmentId()),
-                this, mailboxRegistry(), msg.exchangeId(), msg.exchangeId());
+            inboxCtl = mailboxRegistry().getOrTemporaryController(msg.queryId(), msg.exchangeId());
 
-            inbox = mailboxRegistry().register(newInbox);
-
-            if (inbox == newInbox) {
-                // New inbox for query batch message can be registered in the following cases:
-                // 1. Race between messages (when first batch arrived to node before query start request). In this case
-                // query start request eventually will be delivered and query execution context will be initialized.
-                // Inbox will be closed by standard query execution workflow.
-                // 2. Stale first message (query already has been closed by some event). In this case query execution
-                // workflow already completed and inbox can leak. To prevent leakage, schedule task to check that
-                // query context is initialized within reasonable time (assume that race between messages can't be more
-                // than INBOX_INITIALIZATION_TIMEOUT milliseconds).
-                timeoutService().schedule(() -> {
-                    Inbox<?> timeoutInbox = mailboxRegistry().inbox(msg.queryId(), msg.exchangeId());
-
-                    // Inbox is not unregistered and still not initialized.
-                    if (timeoutInbox != null && timeoutInbox.context().topologyVersion() == null)
-                        taskExecutor().execute(msg.queryId(), msg.fragmentId(), timeoutInbox::close);
-                }, INBOX_INITIALIZATION_TIMEOUT);
-            }
+            // New inbox for query batch message can be registered in the following cases:
+            // 1. Race between messages (when first batch arrived to node before query start request). In this case
+            // query start request eventually will be delivered and query execution context will be initialized.
+            // Inbox will be closed by standard query execution workflow.
+            // 2. Stale first message (query already has been closed by some event). In this case query execution
+            // workflow already completed and inbox can leak. To prevent leakage, schedule task to check that
+            // query context is initialized within reasonable time (assume that race between messages can't be more
+            // than INBOX_INITIALIZATION_TIMEOUT milliseconds).
+            timeoutService().schedule(() -> {
+                InboxController ctl = mailboxRegistry().inboxController(msg.queryId(), msg.exchangeId());
+                // InboxController is still not initialized.
+                if (ctl != null && !ctl.initialized())
+                    ctl.close();
+            }, INBOX_INITIALIZATION_TIMEOUT);
         }
 
-        if (inbox != null) {
+        if (inboxCtl == null) {
+            if (log.isDebugEnabled()) {
+                log.debug("Stale batch message received: [" +
+                    "nodeId=" + nodeId + ", " +
+                    "queryId=" + msg.queryId() + ", " +
+                    "outboxFragmentId=" + msg.outboxFragmentId() + ", " +
+                    "exchangeId=" + msg.exchangeId() + ", " +
+                    "batchId=" + msg.batchId() + "]");
+            }
+            return;
+        }
+
+        if (inboxCtl.ready()) {
+            processBatch(inboxCtl, nodeId, msg);
+        } else new Thread(() -> {
+            // We wait in our own thread so we don't block the initialization if it happens on the same thread (or other incoming messages)
+            InboxController controller = mailboxRegistry().inboxController(msg.queryId(), msg.exchangeId());
+            assert controller != null;
+
+            // Wait for the controller to be ready
             try {
-                if (msg.batchId() == 0) {
-                    Query<?> qry = qryRegistry.query(msg.queryId());
-
-                    if (qry != null)
-                        qry.onInboundExchangeStarted(nodeId, msg.exchangeId());
-                }
-
-                inbox.onBatchReceived(nodeId, msg.batchId(), msg.last(), Commons.cast(msg.rows()));
+                controller.waitForReady(INBOX_INITIALIZATION_TIMEOUT, TimeUnit.MILLISECONDS);
+                controller = mailboxRegistry().inboxController(msg.queryId(), msg.exchangeId());
+            } catch (InterruptedException ignored) {
             }
-            catch (Throwable e) {
-                inbox.onError(e);
 
-                throw new IgniteException("Unexpected exception", e);
+            // Act accordingly
+            if (controller != null && controller.ready()) {
+                InboxController initializedController = controller;
+                taskExecutor().execute(msg.queryId(), msg.executorFragmentId(), () -> processBatch(initializedController, nodeId, msg));
+                return;
             }
-        }
-        else if (log.isDebugEnabled()) {
-            log.debug("Stale batch message received: [" +
+
+            // Initialization Failed
+            log.warning("Inbox controller failed to initialize in required time: [" +
                 "nodeId=" + nodeId + ", " +
                 "queryId=" + msg.queryId() + ", " +
-                "fragmentId=" + msg.fragmentId() + ", " +
+                "outboxFragmentId=" + msg.outboxFragmentId() + ", " +
                 "exchangeId=" + msg.exchangeId() + ", " +
                 "batchId=" + msg.batchId() + "]");
+
+            controller.close();
+
+        }).start();
+    }
+
+    /**
+     * Process a QueryBatchMessage
+     */
+    private void processBatch(InboxController inboxController, UUID nodeId, QueryBatchMessage msg) {
+        assert inboxController.ready();
+        if (msg.batchId() == 0) {
+            Query<?> qry = qryRegistry.query(msg.queryId());
+
+            if (qry != null)
+                qry.onInboundExchangeStarted(nodeId, msg.outboxFragmentId());
         }
+
+        inboxController.processBatch(nodeId, msg);
     }
 
     /**
@@ -357,7 +387,9 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
                 fragmentId,
                 null,
                 null,
-                null),
+                null,
+                1,
+                0),
             null,
             NoOpMemoryTracker.INSTANCE,
             NoOpIoTracker.INSTANCE,

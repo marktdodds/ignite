@@ -39,9 +39,6 @@ public class IgniteSender extends SingleRel implements IgniteRel {
     private final long exchangeId;
 
     /** */
-    private final long targetFragmentId;
-
-    /** */
     private final IgniteDistribution distribution;
 
     /**
@@ -50,10 +47,8 @@ public class IgniteSender extends SingleRel implements IgniteRel {
      * @param traits   Traits of this relational expression
      * @param input    input relational expression
      * @param exchangeId Exchange ID.
-     * @param targetFragmentId Target fragment ID.
      */
-    public IgniteSender(RelOptCluster cluster, RelTraitSet traits, RelNode input, long exchangeId,
-        long targetFragmentId, IgniteDistribution distribution) {
+    public IgniteSender(RelOptCluster cluster, RelTraitSet traits, RelNode input, long exchangeId, IgniteDistribution distribution) {
         super(cluster, traits, input);
 
         assert traitSet.containsIfApplicable(distribution)
@@ -61,7 +56,6 @@ public class IgniteSender extends SingleRel implements IgniteRel {
         assert distribution != RelDistributions.ANY;
 
         this.exchangeId = exchangeId;
-        this.targetFragmentId = targetFragmentId;
         this.distribution = distribution;
     }
 
@@ -76,7 +70,6 @@ public class IgniteSender extends SingleRel implements IgniteRel {
                 .replace(IgniteConvention.INSTANCE),
             input.getInput(),
             ((Number)input.get("exchangeId")).longValue(),
-            ((Number)input.get("targetFragmentId")).longValue(),
             (IgniteDistribution)input.getDistribution());
     }
 
@@ -85,14 +78,9 @@ public class IgniteSender extends SingleRel implements IgniteRel {
         return exchangeId;
     }
 
-    /** */
-    public long targetFragmentId() {
-        return targetFragmentId;
-    }
-
     /** {@inheritDoc} */
     @Override public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new IgniteSender(getCluster(), traitSet, sole(inputs), exchangeId, targetFragmentId, distribution);
+        return new IgniteSender(getCluster(), traitSet, sole(inputs), exchangeId, distribution);
     }
 
     /** {@inheritDoc} */
@@ -121,7 +109,6 @@ public class IgniteSender extends SingleRel implements IgniteRel {
 
         return writer
             .item("exchangeId", exchangeId)
-            .item("targetFragmentId", targetFragmentId)
             .item("distribution", distribution());
     }
 
@@ -141,6 +128,6 @@ public class IgniteSender extends SingleRel implements IgniteRel {
 
     /** {@inheritDoc} */
     @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new IgniteSender(cluster, getTraitSet(), sole(inputs), exchangeId(), targetFragmentId(), distribution());
+        return new IgniteSender(cluster, getTraitSet(), sole(inputs), exchangeId(), distribution());
     }
 }

@@ -82,7 +82,7 @@ public class Cloner implements IgniteRelVisitor<IgniteRel> {
             IgniteRel newRoot = visit(src.root());
             ImmutableList<IgniteReceiver> remotes = this.remotes.build();
 
-            return new Fragment(src.fragmentId(), newRoot, remotes, src.serialized(), src.mapping());
+            return new Fragment(src.fragmentId(), newRoot, remotes, src.serialized(), src.mapping(), src.totalVariants(), src.variantId());
         } finally {
             remotes = null;
         }

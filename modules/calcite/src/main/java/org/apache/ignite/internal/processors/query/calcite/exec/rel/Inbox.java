@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.query.calcite.exec.rel;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +32,9 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExchangeService;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
+import org.apache.ignite.internal.processors.query.calcite.exec.InboxController;
 import org.apache.ignite.internal.processors.query.calcite.exec.MailboxRegistry;
+import org.apache.ignite.internal.processors.query.calcite.prepare.NodeIdFragmentIdPair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,13 +52,11 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
     private final long exchangeId;
 
     /** */
-    private final long srcFragmentId;
+    private final Map<NodeIdFragmentIdPair, Buffer> perKeyBuffers;
+    private final Map<UUID, Integer> perNodeIdBufferCount;
 
     /** */
-    private final Map<UUID, Buffer> perNodeBuffers;
-
-    /** */
-    private volatile Collection<UUID> srcNodeIds;
+    private volatile Collection<NodeIdFragmentIdPair> srcNodeIds;
 
     /** */
     private Comparator<Row> comp;
@@ -76,23 +75,20 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
      * @param exchange Exchange service.
      * @param registry Mailbox registry.
      * @param exchangeId Exchange ID.
-     * @param srcFragmentId Source fragment ID.
      */
     public Inbox(
         ExecutionContext<Row> ctx,
         ExchangeService exchange,
         MailboxRegistry registry,
-        long exchangeId,
-        long srcFragmentId
+        long exchangeId
     ) {
         super(ctx, ctx.getTypeFactory().createUnknownType());
         this.exchange = exchange;
         this.registry = registry;
-
-        this.srcFragmentId = srcFragmentId;
         this.exchangeId = exchangeId;
 
-        perNodeBuffers = new HashMap<>();
+        perKeyBuffers = new HashMap<>();
+        perNodeIdBufferCount = new HashMap<>();
     }
 
     /** {@inheritDoc} */
@@ -107,7 +103,7 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
      * @param srcNodeIds Source node IDs.
      * @param comp Optional comparator for merge exchange.
      */
-    public void init(ExecutionContext<Row> ctx, RelDataType rowType, Collection<UUID> srcNodeIds, @Nullable Comparator<Row> comp) {
+    public void init(ExecutionContext<Row> ctx, RelDataType rowType, Collection<NodeIdFragmentIdPair> srcNodeIds, @Nullable Comparator<Row> comp) {
         assert context().fragmentId() == ctx.fragmentId() : "different fragments unsupported: previous=" + context().fragmentId() +
             " current=" + ctx.fragmentId();
 
@@ -120,7 +116,7 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
         this.comp = comp;
 
         // memory barier
-        this.srcNodeIds = new HashSet<>(srcNodeIds);
+        this.srcNodeIds = srcNodeIds;
     }
 
     /** {@inheritDoc} */
@@ -159,15 +155,16 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
     }
 
     /**
-     * Pushes a batch into a buffer.
+     * Pushes a batch into a buffer. (src, exchangeId) = unique identifier for a source
      *
-     * @param src Source node.
-     * @param batchId Batch ID.
-     * @param last Last batch flag.
-     * @param rows Rows.
+     * @param outboxUUID        Source node.
+     * @param outboxFragmentId  Fragment Id of the outbox sending the message
+     * @param batchId    Batch ID.
+     * @param last       Last batch flag.
+     * @param rows       Rows.
      */
-    public void onBatchReceived(UUID src, int batchId, boolean last, List<Row> rows) throws Exception {
-        Buffer buf = getOrCreateBuffer(src);
+    public void onBatchReceived(UUID outboxUUID, long outboxFragmentId, int batchId, boolean last, List<Row> rows) throws Exception {
+        Buffer buf = getOrCreateBuffer(new NodeIdFragmentIdPair(outboxUUID, outboxFragmentId));
 
         boolean waitingBefore = buf.check() == State.WAITING;
 
@@ -187,14 +184,14 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
     /** */
     private void push() throws Exception {
         if (buffers == null) {
-            for (UUID node : srcNodeIds)
-                checkNode(node);
+            for (NodeIdFragmentIdPair node : srcNodeIds)
+                checkNode(node.getNodeId());
 
             buffers = srcNodeIds.stream()
                 .map(this::getOrCreateBuffer)
                 .collect(Collectors.toList());
 
-            assert buffers.size() == perNodeBuffers.size();
+            assert buffers.size() == perKeyBuffers.size();
         }
 
         if (comp != null)
@@ -214,7 +211,8 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
                 case END:
                     it.remove();
 
-                    exchange.onInboundExchangeFinished(buf.nodeId, queryId(), exchangeId);
+                    if (perNodeIdBufferCount.merge(buf.key.getNodeId(), -1, Integer::sum) == 0)
+                        exchange.onInboundExchangeFinished(buf.key.getNodeId(), queryId(), buf.key.getFragId());
 
                     break;
                 case WAITING:
@@ -255,7 +253,8 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
                     case END:
                         buffers.remove(buf);
 
-                        exchange.onInboundExchangeFinished(buf.nodeId, queryId(), exchangeId);
+                        if (perNodeIdBufferCount.merge(buf.key.getNodeId(), -1, Integer::sum) == 0)
+                            exchange.onInboundExchangeFinished(buf.key.getNodeId(), queryId(), buf.key.getFragId());
 
                         break;
                     case READY:
@@ -295,7 +294,8 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
                     case END:
                         buffers.remove(idx--);
 
-                        exchange.onInboundExchangeFinished(buf.nodeId, queryId(), exchangeId);
+                        if (perNodeIdBufferCount.merge(buf.key.getNodeId(), -1, Integer::sum) == 0)
+                            exchange.onInboundExchangeFinished(buf.key.getNodeId(), queryId(), buf.key.getFragId());
 
                         break;
                     case READY:
@@ -326,18 +326,19 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
     }
 
     /** */
-    private void acknowledge(UUID nodeId, int batchId) throws IgniteCheckedException {
-        exchange.acknowledge(nodeId, queryId(), srcFragmentId, exchangeId, batchId);
+    private void acknowledge(UUID nodeId, long outboxFragmentId, int batchId) throws IgniteCheckedException {
+        exchange.acknowledge(nodeId, queryId(), outboxFragmentId, exchangeId, batchId);
     }
 
     /** */
-    private Buffer getOrCreateBuffer(UUID nodeId) {
-        return perNodeBuffers.computeIfAbsent(nodeId, this::createBuffer);
+    private Buffer getOrCreateBuffer(NodeIdFragmentIdPair key) {
+        return perKeyBuffers.computeIfAbsent(key, this::createBuffer);
     }
 
     /** */
-    private Buffer createBuffer(UUID nodeId) {
-        return new Buffer(nodeId);
+    private Buffer createBuffer(NodeIdFragmentIdPair key) {
+        perNodeIdBufferCount.merge(key.getNodeId(), 1, Integer::sum);
+        return new Buffer(key);
     }
 
     /** */
@@ -351,9 +352,10 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
     /** */
     private void onNodeLeft0(UUID nodeId) throws Exception {
         checkState();
-
-        if (getOrCreateBuffer(nodeId).check() != State.END)
-            throw new ClusterTopologyCheckedException("Failed to execute query, node left [nodeId=" + nodeId + ']');
+        for (Buffer buf : buffers) {
+            if (buf.key.getNodeId() == nodeId && buf.check() != State.END)
+                throw new ClusterTopologyCheckedException("Failed to execute query, node left [nodeId=" + nodeId + ']');
+        }
     }
 
     /** */
@@ -427,7 +429,7 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
     /** */
     private final class Buffer {
         /** */
-        private final UUID nodeId;
+        private final NodeIdFragmentIdPair key;
 
         /** */
         private int lastEnqueued = -1;
@@ -439,8 +441,8 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
         private Batch<Row> curr = waitingMark();
 
         /** */
-        private Buffer(UUID nodeId) {
-            this.nodeId = nodeId;
+        private Buffer(NodeIdFragmentIdPair key) {
+            this.key = key;
         }
 
         /** */
@@ -496,11 +498,13 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
             assert curr != END;
             assert !isEnd();
 
-            Row row = curr.rows.set(curr.idx++, null);
+            // TODO here before it set the element to null. I dont think it should have an impact upstream
+            // if we dont but something to keep an eye on.
+            Row row = curr.rows.get(curr.idx++);
 
             if (curr.idx == curr.rows.size() && !curr.last) {
                 // Don't send acknowledge for the last batch, since outbox already should be closed after the last batch.
-                acknowledge(nodeId, curr.batchId);
+                acknowledge(key.getNodeId(), key.getFragId(), curr.batchId);
 
                 curr = pollBatch();
             }

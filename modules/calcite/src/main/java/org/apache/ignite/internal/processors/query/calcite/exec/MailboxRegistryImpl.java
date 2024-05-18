@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.exec;
 
+import java.security.InvalidParameterException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -47,8 +48,8 @@ public class MailboxRegistryImpl extends AbstractService implements MailboxRegis
     /** */
     private final Map<MailboxKey, Outbox<?>> locals;
 
-    /** */
-    private final Map<MailboxKey, Inbox<?>> remotes;
+    /**  */
+    private final Map<MailboxKey, InboxController> remotes;
 
     /** */
     @GridToStringExclude
@@ -88,60 +89,105 @@ public class MailboxRegistryImpl extends AbstractService implements MailboxRegis
     }
 
     /** {@inheritDoc} */
-    @Override public Inbox<?> register(Inbox<?> inbox) {
-        Inbox<?> old = remotes.putIfAbsent(new MailboxKey(inbox.queryId(), inbox.exchangeId()), inbox);
+    @Override
+    public Inbox<?> register(Inbox<?> inbox) {
+        InboxController controller = remotes.computeIfAbsent(new MailboxKey.Inbox(inbox.queryId(), inbox.exchangeId()), (k) -> new InboxController.UnknownController());
+        Inbox<?> old = controller.addIfAbsent(inbox.fragmentId(), inbox);
 
         return old != null ? old : inbox;
     }
 
     /** {@inheritDoc} */
-    @Override public void unregister(Inbox<?> inbox) {
-        remotes.remove(new MailboxKey(inbox.queryId(), inbox.exchangeId()), inbox);
+    @Override
+    public void unregister(Inbox<?> inbox) {
+        MailboxKey key = new MailboxKey.Inbox(inbox.queryId(), inbox.exchangeId());
+        InboxController ctl = remotes.get(key);
+        if (ctl == null) return;
+
+        boolean empty = ctl.unregister(inbox.fragmentId());
+        if (empty) remotes.remove(key, ctl);
     }
 
     /** {@inheritDoc} */
-    @Override public void register(Outbox<?> outbox) {
-        Outbox<?> res = locals.put(new MailboxKey(outbox.queryId(), outbox.exchangeId()), outbox);
+    @Override
+    public void register(Outbox<?> outbox) {
+        Outbox<?> res = locals.put(new MailboxKey.Outbox(outbox.queryId(), outbox.exchangeId(), outbox.fragmentId()), outbox);
 
         assert res == null : res;
     }
 
     /** {@inheritDoc} */
-    @Override public void unregister(Outbox<?> outbox) {
-        locals.remove(new MailboxKey(outbox.queryId(), outbox.exchangeId()), outbox);
+    @Override
+    public void unregister(Outbox<?> outbox) {
+        locals.remove(new MailboxKey.Outbox(outbox.queryId(), outbox.exchangeId(), outbox.fragmentId()), outbox);
     }
 
     /** {@inheritDoc} */
-    @Override public Outbox<?> outbox(UUID qryId, long exchangeId) {
-        return locals.get(new MailboxKey(qryId, exchangeId));
+    @Override
+    public Outbox<?> outbox(UUID qryId, long exchangeId, long outboxFragmentId) {
+        return locals.get(new MailboxKey.Outbox(qryId, exchangeId, outboxFragmentId));
     }
 
     /** {@inheritDoc} */
-    @Override public Inbox<?> inbox(UUID qryId, long exchangeId) {
-        return remotes.get(new MailboxKey(qryId, exchangeId));
+    @Override
+    public @Nullable InboxController inboxController(UUID qryId, long exchangeId) {
+        return remotes.get(new MailboxKey.Inbox(qryId, exchangeId));
     }
 
     /** {@inheritDoc} */
-    @Override public Collection<Inbox<?>> inboxes(@Nullable UUID qryId, long fragmentId, long exchangeId) {
-        return remotes.values().stream()
-            .filter(makeFilter(qryId, fragmentId, exchangeId))
-            .collect(Collectors.toList());
+    @Override
+    public void initializeController(UUID qryId, long exchangeId, InboxController.SourceControlType type, int totalVariants) {
+        remotes.compute(new MailboxKey.Inbox(qryId, exchangeId), (key, current) -> {
+            if (current != null && current.initialized()) return current;
+            switch (type) {
+                case SPLITTER:
+                    throw new UnsupportedOperationException();
+                case DUPLICATOR:
+                    return current == null ? new InboxController.DuplicatorController(totalVariants) : new InboxController.DuplicatorController(current, totalVariants);
+                default:
+                    throw new InvalidParameterException();
+            }
+        });
     }
 
     /** {@inheritDoc} */
-    @Override public Collection<Outbox<?>> outboxes(@Nullable UUID qryId, long fragmentId, long exchangeId) {
+    @Override
+    public InboxController getOrTemporaryController(UUID qryId, long exchangeId) {
+        return remotes.computeIfAbsent(new MailboxKey.Inbox(qryId, exchangeId), (k) -> new InboxController.UnknownController());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Collection<Inbox<?>> inboxes(@Nullable UUID qryId, long fragmentId) {
+        return inboxes(qryId).stream().filter(i -> i.fragmentId() == fragmentId)
+            .collect(Collectors.toSet());
+    }
+
+    @Override
+    public Collection<Inbox<?>> inboxes(@Nullable UUID qryId) {
+        return remotes.keySet().stream()
+            .filter(k -> k.qryId == qryId)
+            .flatMap(k -> remotes.get(k).allInboxes().stream())
+            .collect(Collectors.toSet());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Collection<Outbox<?>> outboxes(UUID qryId, long exchangeId) {
         return locals.values().stream()
-            .filter(makeFilter(qryId, fragmentId, exchangeId))
+            .filter(o -> o.queryId().equals(qryId) && o.exchangeId() == exchangeId)
             .collect(Collectors.toList());
     }
 
     /** {@inheritDoc} */
-    @Override public Collection<Inbox<?>> inboxes() {
-        return Collections.unmodifiableCollection(remotes.values());
+    @Override
+    public Collection<Inbox<?>> inboxes() {
+        return Collections.unmodifiableCollection(remotes.values().stream().flatMap(c -> c.allInboxes().stream()).collect(Collectors.toSet()));
     }
 
     /** {@inheritDoc} */
-    @Override public Collection<Outbox<?>> outboxes() {
+    @Override
+    public Collection<Outbox<?>> outboxes() {
         return Collections.unmodifiableCollection(locals.values());
     }
 
@@ -183,44 +229,94 @@ public class MailboxRegistryImpl extends AbstractService implements MailboxRegis
         return S.toString(MailboxRegistryImpl.class, this);
     }
 
-    /** */
-    private static class MailboxKey {
-        /** */
-        private final UUID qryId;
+    /**  */
+    private abstract static class MailboxKey {
+        /**  */
+        protected final UUID qryId;
 
-        /** */
-        private final long exchangeId;
+        /**  */
+        protected final long exchangeId;
 
-        /** */
+        /**  */
         private MailboxKey(UUID qryId, long exchangeId) {
             this.qryId = qryId;
             this.exchangeId = exchangeId;
         }
 
-        /** {@inheritDoc} */
-        @Override public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
-
-            MailboxKey that = (MailboxKey)o;
-
-            if (exchangeId != that.exchangeId)
-                return false;
-            return qryId.equals(that.qryId);
-        }
 
         /** {@inheritDoc} */
-        @Override public int hashCode() {
-            int res = qryId.hashCode();
-            res = 31 * res + (int)(exchangeId ^ (exchangeId >>> 32));
-            return res;
-        }
-
-        /** {@inheritDoc} */
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return S.toString(MailboxKey.class, this);
         }
+
+        private static class Inbox extends MailboxKey {
+
+            /**  */
+            private Inbox(UUID qryId, long exchangeId) {
+                super(qryId, exchangeId);
+            }
+
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean equals(Object o) {
+                if (this == o)
+                    return true;
+                if (o == null || getClass() != o.getClass())
+                    return false;
+
+                MailboxKey that = (MailboxKey) o;
+
+                if (exchangeId != that.exchangeId)
+                    return false;
+                return qryId.equals(that.qryId);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public int hashCode() {
+                int res = qryId.hashCode();
+                res = 31 * res + (int) (exchangeId ^ (exchangeId >>> 32));
+                return res;
+            }
+        }
+
+        private static class Outbox extends MailboxKey {
+
+            private final long sourceFragmentId;
+
+            /**  */
+            private Outbox(UUID qryId, long exchangeId, long sourceFragmentId) {
+                super(qryId, exchangeId);
+                this.sourceFragmentId = sourceFragmentId;
+            }
+
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean equals(Object o) {
+                if (this == o)
+                    return true;
+                if (o == null || getClass() != o.getClass())
+                    return false;
+
+                Outbox that = (Outbox) o;
+
+                if (exchangeId != that.exchangeId)
+                    return false;
+                if (sourceFragmentId != that.sourceFragmentId)
+                    return false;
+
+                return qryId.equals(that.qryId);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public int hashCode() {
+                return Objects.hash(qryId, exchangeId, sourceFragmentId);
+            }
+        }
     }
+
 }

@@ -26,6 +26,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTrimExchange;
+import org.apache.ignite.internal.util.typedef.F;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -80,13 +81,11 @@ public class Splitter extends IgniteRelShuttle {
     @Override public IgniteRel visit(IgniteExchange rel) {
         RelOptCluster cluster = rel.getCluster();
 
-        long targetFragmentId = curr.id;
         long sourceFragmentId = IdGenerator.nextId();
-        long exchangeId = sourceFragmentId;
+        long exchangeId = IdGenerator.nextId();
 
-        IgniteReceiver receiver = new IgniteReceiver(cluster, rel.getTraitSet(), rel.getRowType(), exchangeId, sourceFragmentId);
-        IgniteSender sender = new IgniteSender(cluster, rel.getTraitSet(), rel.getInput(), exchangeId, targetFragmentId,
-            rel.distribution());
+        IgniteReceiver receiver = new IgniteReceiver(cluster, rel.getTraitSet(), rel.getRowType(), exchangeId, F.asList(sourceFragmentId));
+        IgniteSender sender = new IgniteSender(cluster, rel.getTraitSet(), rel.getInput(), exchangeId, rel.distribution());
 
         curr.remotes.add(receiver);
         stack.push(new FragmentProto(sourceFragmentId, sender));

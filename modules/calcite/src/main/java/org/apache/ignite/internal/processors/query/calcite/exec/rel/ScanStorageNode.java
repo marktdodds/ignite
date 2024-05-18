@@ -32,12 +32,13 @@ public class ScanStorageNode<Row> extends ScanNode<Row> {
     @Nullable private final AtomicLong processedRowsCntr;
 
     /**
-     * @param storageName Storage (index or table) name.
-     * @param ctx Execution context.
-     * @param rowType Row type.
-     * @param src Source.
-     * @param filter Row filter.
-     * @param rowTransformer Row transformer (projection).
+     * @param storageName        Storage (index or table) name.
+     * @param ctx                Execution context.
+     * @param rowType            Row type.
+     * @param src                Source.
+     * @param filter             Row filter.
+     * @param rowTransformer     Row transformer (projection).
+     * @param isThreadedSplitter
      */
     public ScanStorageNode(
         String storageName,
@@ -45,9 +46,9 @@ public class ScanStorageNode<Row> extends ScanNode<Row> {
         RelDataType rowType,
         Iterable<Row> src,
         @Nullable Predicate<Row> filter,
-        @Nullable Function<Row, Row> rowTransformer
-    ) {
-        super(ctx, rowType, src, filter, rowTransformer);
+        @Nullable Function<Row, Row> rowTransformer,
+        boolean isThreadedSplitter) {
+        super(ctx, rowType, src, filter, rowTransformer, isThreadedSplitter);
 
         processedRowsCntr = context().ioTracker().processedRowsCounter("Scanned " + storageName);
     }
@@ -59,7 +60,7 @@ public class ScanStorageNode<Row> extends ScanNode<Row> {
      * @param src Source.
      */
     public ScanStorageNode(String storageName, ExecutionContext<Row> ctx, RelDataType rowType, Iterable<Row> src) {
-        this(storageName, ctx, rowType, src, null, null);
+        this(storageName, ctx, rowType, src, null, null, false);
     }
 
     /** {@inheritDoc} */

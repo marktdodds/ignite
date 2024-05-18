@@ -31,7 +31,7 @@ public class InboxCloseMessage implements CalciteMessage {
     private UUID queryId;
 
     /** */
-    private long fragmentId;
+    private long outboxFragmentId;
 
     /** */
     private long exchangeId;
@@ -42,9 +42,9 @@ public class InboxCloseMessage implements CalciteMessage {
     }
 
     /** */
-    public InboxCloseMessage(UUID queryId, long fragmentId, long exchangeId) {
+    public InboxCloseMessage(UUID queryId, long outboxFragmentId, long exchangeId) {
         this.queryId = queryId;
-        this.fragmentId = fragmentId;
+        this.outboxFragmentId = outboxFragmentId;
         this.exchangeId = exchangeId;
     }
 
@@ -58,8 +58,8 @@ public class InboxCloseMessage implements CalciteMessage {
     /**
      * @return Fragment ID.
      */
-    public long fragmentId() {
-        return fragmentId;
+    public long outboxFragmentId() {
+        return outboxFragmentId;
     }
 
     /**
@@ -88,7 +88,7 @@ public class InboxCloseMessage implements CalciteMessage {
                 writer.incrementState();
 
             case 1:
-                if (!writer.writeLong("fragmentId", fragmentId))
+                if (!writer.writeLong("fragmentId", outboxFragmentId))
                     return false;
 
                 writer.incrementState();
@@ -121,7 +121,7 @@ public class InboxCloseMessage implements CalciteMessage {
                 reader.incrementState();
 
             case 1:
-                fragmentId = reader.readLong("fragmentId");
+                outboxFragmentId = reader.readLong("fragmentId");
 
                 if (!reader.isLastRead())
                     return false;

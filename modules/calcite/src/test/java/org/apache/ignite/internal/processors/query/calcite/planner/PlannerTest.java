@@ -425,7 +425,7 @@ public class PlannerTest extends AbstractPlannerTest {
                 fragment.fragmentId(),
                 fragment.mapping(),
                 plan.target(fragment),
-                plan.remotes(fragment)),
+                plan.remotes(fragment), 1, 0),
             ArrayRowHandler.INSTANCE,
             NoOpMemoryTracker.INSTANCE,
             NoOpIoTracker.INSTANCE,

@@ -597,7 +597,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
         MappingQueryContext mapCtx = Commons.mapContext(locNodeId, topologyVersion(), qry.context(), qryParams);
 
-        ExecutionPlan execPlan = plan.init(mappingSvc, partSvc, mapCtx);
+        ExecutionPlan execPlan = plan.init(mappingSvc, partSvc, mapCtx).makeMultiThreaded();
 
         List<Fragment> fragments = execPlan.fragments();
 
@@ -634,7 +634,9 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
             fragment.fragmentId(),
             execPlan.mapping(fragment),
             execPlan.target(fragment),
-            execPlan.remotes(fragment));
+            execPlan.remotes(fragment),
+            fragment.totalVariants(),
+            fragment.variantId());
 
         ExecutionContext<Row> ectx = new ExecutionContext<>(
             qry.context(),
@@ -667,13 +669,16 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
                 fragment.fragmentId(),
                 execPlan.mapping(fragment),
                 execPlan.target(fragment),
-                execPlan.remotes(fragment));
+                execPlan.remotes(fragment),
+                fragment.totalVariants(),
+                fragment.variantId());
 
             Throwable ex = null;
             byte[] parametersMarshalled = null;
 
             for (UUID nodeId : fragmentDesc.nodeIds()) {
                 if (ex != null)
+                    // If we got an error the here the receiving inbox is in the root fragment
                     qry.onResponse(nodeId, fragment.fragmentId(), ex);
                 else {
                     try {
@@ -850,6 +855,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
     /**  */
     private void onMessage(UUID nodeId, final QueryStartRequest msg) {
         assert nodeId != null && msg != null;
+        long exchangeId = -1;
 
         try {
             Query<Row> qry = (Query<Row>) qryReg.register(
@@ -874,6 +880,8 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
             assert qryPlan.type() == QueryPlan.Type.FRAGMENT;
 
+            exchangeId = ((FragmentPlan) qryPlan).exchangeId();
+
             ExecutionContext<Row> ectx = new ExecutionContext<>(
                 qctx,
                 taskExecutor(),
@@ -893,13 +901,12 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
         } catch (Throwable ex) {
             U.error(log, "Failed to start query fragment ", ex);
 
-            mailboxRegistry.outboxes(msg.queryId(), msg.fragmentId(), -1)
-                .forEach(Outbox::close);
-            mailboxRegistry.inboxes(msg.queryId(), msg.fragmentId(), -1)
-                .forEach(Inbox::close);
-
+            if (exchangeId != -1) {
+                mailboxRegistry.outboxes(msg.queryId(), exchangeId).forEach(Outbox::close);
+                mailboxRegistry.inboxes(msg.queryId(), exchangeId).forEach(Inbox::close);
+            }
             try {
-                messageService().send(nodeId, new QueryStartResponse(msg.queryId(), msg.fragmentId(), ex));
+                messageService().send(nodeId, new QueryStartResponse(msg.queryId(), msg.fragmentDescription().fragmentId(), ex));
             } catch (IgniteCheckedException e) {
                 U.error(log, "Error occurred during send error message: " + X.getFullStackTrace(e));
             } finally {

@@ -288,7 +288,7 @@ public class AbstractExecutionTest extends GridCommonAbstractTest {
 
     /** */
     protected ExecutionContext<Object[]> executionContext(UUID nodeId, UUID qryId, long fragmentId) {
-        FragmentDescription fragmentDesc = new FragmentDescription(fragmentId, null, null, null);
+        FragmentDescription fragmentDesc = new FragmentDescription(fragmentId, null, null, null, 1, 0);
         return new ExecutionContext<>(
             BaseQueryContext.builder()
                 .logger(log)

@@ -24,11 +24,13 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.internal.processors.query.calcite.exec.ExecutionContext;
 import org.apache.ignite.internal.processors.query.calcite.exec.MailboxRegistry;
+import org.apache.ignite.internal.processors.query.calcite.prepare.NodeIdFragmentIdPair;
 import org.apache.ignite.internal.processors.query.calcite.trait.AllNodes;
 import org.apache.ignite.internal.processors.query.calcite.type.IgniteTypeFactory;
 import org.apache.ignite.internal.processors.query.calcite.util.TypeUtils;
@@ -150,7 +152,7 @@ public class ContinuousExecutionTest extends AbstractExecutionTest {
             MailboxRegistry registry = mailboxRegistry(locNodeId);
 
             Outbox<Object[]> outbox = new Outbox<>(ectx, rowType, exchangeService(locNodeId), registry,
-                0, 1, new AllNodes(nodes.subList(0, 1)));
+                0, new AllNodes(nodes.subList(0, 1)));
 
             outbox.register(filter);
             registry.register(outbox);
@@ -166,10 +168,10 @@ public class ContinuousExecutionTest extends AbstractExecutionTest {
         MailboxRegistry registry = mailboxRegistry(locNodeId);
 
         Inbox<Object[]> inbox = (Inbox<Object[]>)registry.register(
-            new Inbox<>(ectx, exchangeService(locNodeId), registry, 0, 0));
+            new Inbox<>(ectx, exchangeService(locNodeId), registry, 0));
 
         RelDataType rowType = TypeUtils.createRowType(tf, int.class, int.class, int.class);
-        inbox.init(ectx, rowType, nodes.subList(1, nodes.size()), null);
+        inbox.init(ectx, rowType, nodes.subList(1, nodes.size()).stream().map(id -> new NodeIdFragmentIdPair(id, 0)).collect(Collectors.toSet()), null);
 
         RootNode<Object[]> node = new RootNode<>(ectx, rowType);
 

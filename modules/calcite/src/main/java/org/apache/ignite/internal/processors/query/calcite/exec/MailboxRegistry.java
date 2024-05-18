@@ -61,42 +61,39 @@ public interface MailboxRegistry extends Service {
     /**
      * Returns a registered outbox by provided query ID, exchange ID pair.
      *
-     * @param qryId Query ID.
-     * @param exchangeId Exchange ID.
-     *
+     * @param qryId            Query ID.
+     * @param exchangeId       Exchange ID.
+     * @param outboxFragmentId
      * @return Registered outbox. May be {@code null} if execution was cancelled.
      */
-    Outbox<?> outbox(UUID qryId, long exchangeId);
+    Outbox<?> outbox(UUID qryId, long exchangeId, long outboxFragmentId);
 
     /**
-     * Returns a registered inbox by provided query ID, exchange ID pair.
-     *
-     * @param qryId Query ID.
-     * @param exchangeId Exchange ID.
-     *
-     * @return Registered inbox. May be {@code null} if execution was cancelled.
+     * Returns a registered inbox controller
+     * @param qryId Query Id
+     * @param exchangeId Exchange Id
+     * @return Registered inboxController. May be {@code null} if execution was cancelled
      */
-    Inbox<?> inbox(UUID qryId, long exchangeId);
+    @Nullable InboxController inboxController(UUID qryId, long exchangeId);
 
     /**
      * Returns all registered inboxes for provided query ID.
      *
      * @param qryId Query ID. {@code null} means return inboxes with any query id.
-     * @param fragmentId Fragment Id. {@code -1} means return inboxes with any fragment id.
      * @param exchangeId Exchange Id. {@code -1} means return inboxes with any exchange id.
      * @return Registered inboxes.
      */
-    Collection<Inbox<?>> inboxes(@Nullable UUID qryId, long fragmentId, long exchangeId);
+    Collection<Inbox<?>> inboxes(@Nullable UUID qryId, long exchangeId);
+    Collection<Inbox<?>> inboxes(@Nullable UUID qryId);
 
     /**
      * Returns all registered outboxes for provided query ID.
      *
-     * @param qryId Query ID. {@code null} means return outboxes with any query id.
-     * @param fragmentId Fragment Id. {@code -1} means return outboxes with any fragment id.
-     * @param exchangeId Exchange Id. {@code -1} means return outboxes with any exchange id.
+     * @param qryId Query ID.
+     * @param exchangeId Exchange Id.
      * @return Registered outboxes.
      */
-    Collection<Outbox<?>> outboxes(@Nullable UUID qryId, long fragmentId, long exchangeId);
+    Collection<Outbox<?>> outboxes(UUID qryId, long exchangeId);
 
     /**
      * Returns all registered inboxes.
@@ -111,4 +108,14 @@ public interface MailboxRegistry extends Service {
      * @return Registered outboxes.
      */
     Collection<Outbox<?>> outboxes();
+
+    /**
+     * Creates an inbox controller for the query id, echange ID pair if none exists
+     */
+    void initializeController(UUID qryId, long exchangeId, InboxController.SourceControlType type, int totalVariants);
+
+    /**
+     * Trys to get a controller, creating and returning a temporary one if it doesn't exist
+     */
+    InboxController getOrTemporaryController(UUID qryId, long exchangeId);
 }

@@ -51,13 +51,16 @@ public class ScanNode<Row> extends AbstractNode<Row> implements SingleNode<Row> 
     /** */
     private boolean firstReq = true;
 
+    /** */
+    private boolean isThreadedSplitter;
+
     /**
-     * @param ctx Execution context.
+     * @param ctx     Execution context.
      * @param rowType Row type.
-     * @param src Source.
+     * @param src     Source.
      */
     public ScanNode(ExecutionContext<Row> ctx, RelDataType rowType, Iterable<Row> src) {
-        this(ctx, rowType, src, null, null);
+        this(ctx, rowType, src, null, null, false);
     }
 
     /**
@@ -74,11 +77,31 @@ public class ScanNode<Row> extends AbstractNode<Row> implements SingleNode<Row> 
         @Nullable Predicate<Row> filter,
         @Nullable Function<Row, Row> rowTransformer
     ) {
+        this(ctx, rowType, src, filter, rowTransformer, false);
+    }
+
+
+    /**
+     * @param ctx Execution context.
+     * @param rowType Row type.
+     * @param src Source.
+     * @param filter Row filter.
+     * @param rowTransformer Row transformer (projection).
+     */
+    public ScanNode(
+        ExecutionContext<Row> ctx,
+        RelDataType rowType,
+        Iterable<Row> src,
+        @Nullable Predicate<Row> filter,
+        @Nullable Function<Row, Row> rowTransformer,
+        boolean isThreadedSplitter
+    ) {
         super(ctx, rowType);
 
         this.src = src;
         this.filter = filter;
         this.rowTransformer = rowTransformer;
+        this.isThreadedSplitter = isThreadedSplitter;
     }
 
     /** {@inheritDoc} */
@@ -149,6 +172,8 @@ public class ScanNode<Row> extends AbstractNode<Row> implements SingleNode<Row> 
         }
     }
 
+    int rowsRead = 0;
+
     /**
      * @return Count of processed rows.
      */
@@ -158,6 +183,11 @@ public class ScanNode<Row> extends AbstractNode<Row> implements SingleNode<Row> 
             checkState();
 
             Row r = it.next();
+
+            if (isThreadedSplitter) {
+                rowsRead++;
+                if (!context().shouldProcess(rowsRead)) continue;
+            }
 
             if (filter == null || filter.test(r)) {
                 requested--;

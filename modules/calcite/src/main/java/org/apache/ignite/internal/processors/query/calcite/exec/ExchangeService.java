@@ -30,36 +30,37 @@ import org.apache.ignite.internal.processors.query.calcite.util.Service;
 public interface ExchangeService extends Service {
     /**
      * Sends a batch of data to remote node.
-     * @param nodeId      Target node ID.
-     * @param qryId       Query ID.
-     * @param fragmentId  Target fragment ID.
-     * @param exchangeId  Exchange ID.
-     * @param batchId     Batch ID.
-     * @param last        Last batch flag.
-     * @param rows        Data rows.
-     * @param rowType     Type definition for the row to use smarter marshalling if possible
+     *
+     * @param nodeId     Target node ID.
+     * @param qryId      Query ID.
+     * @param outboxFragmentId Outbox Fragment ID
+     * @param exchangeId Exchange ID.
+     * @param batchId    Batch ID.
+     * @param last       Last batch flag.
+     * @param rows       Data rows.
+     * @param rowType    Type definition for the row to use smarter marshalling if possible
      */
-    <Row> void sendBatch(UUID nodeId, UUID qryId, long fragmentId, long exchangeId, int batchId, boolean last,
+    <Row> void sendBatch(UUID nodeId, UUID qryId, long outboxFragmentId, long exchangeId, int batchId, boolean last,
                          List<Row> rows, RelDataType rowType) throws IgniteCheckedException;
 
     /**
      * Acknowledges a batch with given ID is processed.
      * @param nodeId Node ID to notify.
      * @param qryId Query ID.
-     * @param fragmentId Target fragment ID.
+     * @param outboxFragmentId Outbox fragment ID.
      * @param exchangeId Exchange ID.
      * @param batchId Batch ID.
      */
-    void acknowledge(UUID nodeId, UUID qryId, long fragmentId, long exchangeId, int batchId) throws IgniteCheckedException;
+    void acknowledge(UUID nodeId, UUID qryId, long outboxFragmentId, long exchangeId, int batchId) throws IgniteCheckedException;
 
     /**
      * Sends cancel request.
      * @param nodeId Target node ID.
      * @param qryId Query ID.
-     * @param fragmentId Target fragment ID.
+     * @param outboxFragmentId Outbox fragment ID.
      * @param exchangeId Exchange ID.
      */
-    void closeInbox(UUID nodeId, UUID qryId, long fragmentId, long exchangeId) throws IgniteCheckedException;
+    void closeInbox(UUID nodeId, UUID qryId, long outboxFragmentId, long exchangeId) throws IgniteCheckedException;
 
     /**
      * Sends cancel request.
@@ -91,7 +92,7 @@ public interface ExchangeService extends Service {
     /**
      * Callback after the last batch of the query fragment from the node is processed.
      */
-    void onInboundExchangeFinished(UUID nodeId, UUID qryId, long exchangeId);
+    void onInboundExchangeFinished(UUID nodeId, UUID qryId, long remoteFragmentId);
 
     /**
      * Local node ID.

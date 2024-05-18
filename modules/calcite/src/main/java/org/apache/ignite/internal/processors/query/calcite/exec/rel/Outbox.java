@@ -35,7 +35,6 @@ import org.apache.ignite.internal.processors.query.calcite.trait.Destination;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.util.InternalDebug;
 
 /**
  * A part of exchange.
@@ -49,9 +48,6 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
 
     /** */
     private final long exchangeId;
-
-    /** */
-    private final long targetFragmentId;
 
     /** */
     private final Destination<Row> dest;
@@ -74,7 +70,6 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
      * @param exchange Exchange service.
      * @param registry Mailbox registry.
      * @param exchangeId Exchange ID.
-     * @param targetFragmentId Target fragment ID.
      * @param dest Destination.
      */
     public Outbox(
@@ -83,13 +78,11 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
         ExchangeService exchange,
         MailboxRegistry registry,
         long exchangeId,
-        long targetFragmentId,
         Destination<Row> dest
     ) {
         super(ctx, rowType);
         this.exchange = exchange;
         this.registry = registry;
-        this.targetFragmentId = targetFragmentId;
         this.exchangeId = exchangeId;
         this.dest = dest;
 
@@ -200,7 +193,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
 
     /** */
     private void sendBatch(UUID nodeId, int batchId, boolean last, List<Row> rows) throws IgniteCheckedException {
-        exchange.sendBatch(nodeId, queryId(), targetFragmentId, exchangeId, batchId, last, rows, rowType());
+        exchange.sendBatch(nodeId, queryId(), fragmentId(), exchangeId, batchId, last, rows, rowType());
     }
 
     /** */
@@ -211,7 +204,7 @@ public class Outbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Sing
     /** */
     private void sendInboxClose(UUID nodeId) {
         try {
-            exchange.closeInbox(nodeId, queryId(), targetFragmentId, exchangeId);
+            exchange.closeInbox(nodeId, queryId(), fragmentId(), exchangeId);
         }
         catch (IgniteCheckedException e) {
             U.warn(context().logger(), "Failed to send cancel message.", e);

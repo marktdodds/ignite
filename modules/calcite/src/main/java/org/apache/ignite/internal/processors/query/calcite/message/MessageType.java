@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
 import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentDescription;
 import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapping;
+import org.apache.ignite.internal.processors.query.calcite.prepare.NodeIdFragmentIdPair;
 
 /**
  *
@@ -60,7 +61,9 @@ public enum MessageType {
     COLOCATION_GROUP(351, ColocationGroup::new),
 
     /** */
-    FRAGMENT_DESCRIPTION(352, FragmentDescription::new);
+    FRAGMENT_DESCRIPTION(352, FragmentDescription::new),
+
+    FRAGMENT_REMOTE_KEY_COLLATION(353, NodeIdFragmentIdPair.MarshallableCollectionMessage::new);
 
     /** */
     private final int directType;
