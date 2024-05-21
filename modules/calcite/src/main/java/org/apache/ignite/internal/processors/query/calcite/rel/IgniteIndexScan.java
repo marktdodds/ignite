@@ -42,6 +42,12 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
     /** Index collation. Required only for rewriting index scan to table scan + sort in case of index rebuild. */
     private final RelCollation collation;
 
+
+    /**
+     * Boolean indicating whether this node is part of a variant set and should split its source
+     */
+    private final boolean isVariantSplitter;
+
     /**
      * Constructor used for deserialization.
      *
@@ -57,6 +63,8 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
             sourceId = ((Number) srcIdObj).longValue();
         else
             sourceId = -1;
+
+        isVariantSplitter = input.getBoolean("isVariantSplitter", false);
     }
 
     /**
@@ -82,20 +90,21 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
         @Nullable ImmutableBitSet requiredCols,
         RelCollation collation
     ) {
-        this(-1L, cluster, traits, tbl, idxName, proj, cond, searchBounds, requiredCols, collation);
+        this(-1L, cluster, traits, tbl, idxName, proj, cond, searchBounds, requiredCols, collation, false);
     }
 
     /**
      * Creates a IndexScan.
      *
-     * @param cluster      Cluster that this relational expression belongs to
-     * @param traits       Traits of this relational expression
-     * @param tbl          Table definition.
-     * @param idxName      Index name.
-     * @param proj         Projects.
-     * @param cond         Filters.
-     * @param requiredCols Participating colunms.
-     * @param collation    Index collation.
+     * @param cluster           Cluster that this relational expression belongs to
+     * @param traits            Traits of this relational expression
+     * @param tbl               Table definition.
+     * @param idxName           Index name.
+     * @param proj              Projects.
+     * @param cond              Filters.
+     * @param requiredCols      Participating colunms.
+     * @param collation         Index collation.
+     * @param isVariantSplitter
      */
     private IgniteIndexScan(
         long sourceId,
@@ -107,12 +116,13 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
         @Nullable RexNode cond,
         @Nullable List<SearchBounds> searchBounds,
         @Nullable ImmutableBitSet requiredCols,
-        RelCollation collation
-    ) {
+        RelCollation collation,
+        boolean isVariantSplitter) {
         super(cluster, traits, tbl, idxName, proj, cond, searchBounds, requiredCols);
 
         this.sourceId = sourceId;
         this.collation = collation;
+        this.isVariantSplitter = isVariantSplitter;
     }
 
     /** {@inheritDoc} */
@@ -126,12 +136,13 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
     protected RelWriter explainTerms0(RelWriter pw) {
         return super.explainTerms0(pw)
             .itemIf("sourceId", sourceId, sourceId != -1)
+            .item("isVariantSplitter", isVariantSplitter)
             .item("collation", collation());
     }
 
     @Override
     public IgniteIndexScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
-        return new IgniteIndexScan(getCluster(), traitSet, table, idxName, projects, condition, searchBounds, requiredColumns, collation);
+        return new IgniteIndexScan(sourceId, getCluster(), traitSet, table, idxName, projects, condition, searchBounds, requiredColumns, collation, isVariantSplitter);
     }
 
     /** {@inheritDoc} */
@@ -144,19 +155,30 @@ public class IgniteIndexScan extends AbstractIndexScan implements SourceAwareIgn
     @Override
     public IgniteRel clone(long sourceId) {
         return new IgniteIndexScan(sourceId, getCluster(), getTraitSet(), getTable(),
-            idxName, projects, condition, searchBounds, requiredColumns, collation);
+            idxName, projects, condition, searchBounds, requiredColumns, collation, isVariantSplitter);
     }
 
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
         return new IgniteIndexScan(sourceId, cluster, getTraitSet(), getTable(),
-            idxName, projects, condition, searchBounds, requiredColumns, collation);
+            idxName, projects, condition, searchBounds, requiredColumns, collation, isVariantSplitter);
+    }
+
+    /** {@inheritDoc} */
+    public IgniteRel clone(boolean isVariantSplitter) {
+        return new IgniteIndexScan(sourceId, getCluster(), getTraitSet(), getTable(),
+            idxName, projects, condition, searchBounds, requiredColumns, collation, isVariantSplitter);
     }
 
     /** {@inheritDoc} */
     @Override
     public RelCollation collation() {
         return collation;
+    }
+
+    /** */
+    public boolean isVariantSplitter() {
+        return isVariantSplitter;
     }
 }

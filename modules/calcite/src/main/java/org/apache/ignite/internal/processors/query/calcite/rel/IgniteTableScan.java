@@ -39,7 +39,10 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
     /**  */
     private final long sourceId;
 
-    private final boolean isThreadedSplitter;
+    /**
+     * Boolean indicating whether this node is part of a variant set and should split its source
+     */
+    private final boolean isVariantSplitter;
 
     /**
      * Constructor used for deserialization.
@@ -55,7 +58,7 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
         else
             sourceId = -1;
 
-        isThreadedSplitter = input.getBoolean("isThreadedSplitter", false);
+        isVariantSplitter = input.getBoolean("isVariantSplitter", false);
     }
 
     /**
@@ -97,13 +100,13 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
     /**
      * Creates a TableScan.
      *
-     * @param cluster         Cluster that this relational expression belongs to
-     * @param traits          Traits of this relational expression
-     * @param tbl             Table definition.
-     * @param proj            Projects.
-     * @param cond            Filters.
-     * @param requiredColumns Participating colunms.
-     * @param isThreadedSplitter
+     * @param cluster           Cluster that this relational expression belongs to
+     * @param traits            Traits of this relational expression
+     * @param tbl               Table definition.
+     * @param proj              Projects.
+     * @param cond              Filters.
+     * @param requiredColumns   Participating colunms.
+     * @param isVariantSplitter
      */
     private IgniteTableScan(
         long sourceId,
@@ -113,10 +116,10 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
         @Nullable List<RexNode> proj,
         @Nullable RexNode cond,
         @Nullable ImmutableBitSet requiredColumns,
-        boolean isThreadedSplitter) {
+        boolean isVariantSplitter) {
         super(cluster, traits, ImmutableList.of(), tbl, proj, cond, requiredColumns);
         this.sourceId = sourceId;
-        this.isThreadedSplitter = isThreadedSplitter;
+        this.isVariantSplitter = isVariantSplitter;
     }
 
     /**  */
@@ -129,7 +132,7 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
     @Override
     protected RelWriter explainTerms0(RelWriter pw) {
         return super.explainTerms0(pw)
-            .item("isThreadedSplitter", isThreadedSplitter)
+            .item("isVariantSplitter", isVariantSplitter)
             .itemIf("sourceId", sourceId, sourceId != -1);
     }
 
@@ -141,30 +144,28 @@ public class IgniteTableScan extends ProjectableFilterableTableScan implements S
 
     @Override
     public IgniteTableScan clone(@Nullable RexNode condition, @Nullable ImmutableBitSet requiredColumns) {
-        return new IgniteTableScan(sourceId, getCluster(), traitSet, table, projects, condition, requiredColumns, isThreadedSplitter);
+        return new IgniteTableScan(sourceId, getCluster(), traitSet, table, projects, condition, requiredColumns, isVariantSplitter);
     }
 
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(long sourceId) {
-        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns, isThreadedSplitter);
+        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns, isVariantSplitter);
     }
 
     /** {@inheritDoc} */
     @Override
     public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new IgniteTableScan(sourceId, cluster, getTraitSet(), getTable(), projects, condition, requiredColumns, isThreadedSplitter);
+        return new IgniteTableScan(sourceId, cluster, getTraitSet(), getTable(), projects, condition, requiredColumns, isVariantSplitter);
     }
 
-    /**
-     * Clones relative to a multithreaded config
-     */
-    public IgniteTableScan clone(boolean isThreadedSplitter) {
-        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns, isThreadedSplitter);
+    /**  */
+    public IgniteTableScan clone(boolean isVariantSplitter) {
+        return new IgniteTableScan(sourceId, getCluster(), getTraitSet(), getTable(), projects, condition, requiredColumns, isVariantSplitter);
     }
 
-    public boolean isThreadedSplitter() {
-        return isThreadedSplitter;
+    public boolean isVariantSplitter() {
+        return isVariantSplitter;
     }
 
     @Override

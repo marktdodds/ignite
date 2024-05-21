@@ -394,7 +394,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         if (idx != null && !tbl.isIndexRebuildInProgress()) {
             Iterable<Row> rowsIter = idx.scan(ctx, grp, ranges, requiredColumns);
 
-            return new ScanStorageNode<>(idx.name(), ctx, rowType, rowsIter, filters, prj, false);
+            return new ScanStorageNode<>(idx.name(), ctx, rowType, rowsIter, filters, prj, rel.isVariantSplitter());
         } else {
             // Index was invalidated after planning, workaround through table-scan -> sort -> index spool.
             // If there are correlates in filter or project, spool node is required to provide ability to rewind input.
@@ -562,7 +562,7 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
         Iterable<Row> rowsIter = tbl.scan(ctx, group, requiredColunms);
 
-        return new ScanStorageNode<>(tbl.name(), ctx, rowType, rowsIter, filters, prj, rel.isThreadedSplitter());
+        return new ScanStorageNode<>(tbl.name(), ctx, rowType, rowsIter, filters, prj, rel.isVariantSplitter());
     }
 
     /** {@inheritDoc} */

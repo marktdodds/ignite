@@ -123,7 +123,7 @@ public abstract class AbstractNode<Row> implements Node<Row> {
                     @Override
                     public void push(Row row) throws Exception {
                         if (sourcesRemaining.get(finalI)) {
-                            System.out.println("[" + dr.getClass().getName() + "#ds" + finalI + "] TTFR: " + (System.currentTimeMillis() - startTime) + "ms");
+                            System.out.println("[" + dr.getClass().getName() + "#var" + context().variantId() + "#ds" + finalI + "] TTFR: " + (System.currentTimeMillis() - startTime) + "ms");
                             sourcesRemaining.clear(finalI);
                         }
                         dr.push(row);
@@ -131,7 +131,7 @@ public abstract class AbstractNode<Row> implements Node<Row> {
 
                     @Override
                     public void end() throws Exception {
-                        System.out.println("[" + dr.getClass().getName() + "#ds" + finalI + "] TTC: " + (System.currentTimeMillis() - startTime) + "ms");
+                        System.out.println("[" + dr.getClass().getName() + "#var" + context().variantId() +  "#ds" + finalI + "] TTC: " + (System.currentTimeMillis() - startTime) + "ms");
                         dr.end();
                     }
 

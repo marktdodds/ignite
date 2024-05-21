@@ -24,12 +24,14 @@ import org.apache.ignite.internal.processors.query.calcite.exec.InboxController.
 import org.apache.ignite.internal.processors.query.calcite.exec.partition.PartitionNode;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
 import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapping;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteNestedLoopJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSort;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
+import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -219,21 +221,33 @@ public class ExecutionPlan {
             return process(rel.clone(rel.getCluster(), Commons.cast(rel.getInputs())));
         }
 
+        /** {@inheritDoc} */
         @Override
         public IgniteRel visit(IgniteSender rel) {
             return isAllowed(rel);
         }
 
+        /** {@inheritDoc} */
         @Override
         public IgniteRel visit(IgniteTableScan rel) {
             assert rel.getInputs().size() == 0;
             return rel.clone(type == SourceControlType.SPLITTER);
         }
 
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteIndexScan rel) {
+            assert rel.getInputs().size() == 0;
+            return rel.clone(type == SourceControlType.SPLITTER);
+        }
+
+        /** {@inheritDoc} */
+        @Override
         public IgniteRel visit(IgniteReceiver rel) {
             return rel.clone(type);
         }
 
+        /** {@inheritDoc} */
         @Override
         public IgniteRel visit(IgniteNestedLoopJoin rel) {
             IgniteRel left = new MultiThreadingReplacer(SourceControlType.DUPLICATOR).go((IgniteRel) rel.getLeft());
@@ -243,8 +257,15 @@ public class ExecutionPlan {
             return rel.clone(rel.getCluster(), F.asList(left, right));
         }
 
+        /** {@inheritDoc} */
         @Override
         public IgniteRel visit(IgniteSort rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteMapSortAggregate rel) {
             return isAllowed(rel);
         }
 
