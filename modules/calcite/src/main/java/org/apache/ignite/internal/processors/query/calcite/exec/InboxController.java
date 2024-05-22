@@ -194,7 +194,7 @@ public abstract class InboxController {
 
     static class SplitterController extends InboxController {
 
-        private int currentInbox = 0;
+        private int currentInbox = -1;
         private int totalInboxes;
 
         private final ArrayList<Inbox<?>> inboxList = new ArrayList<>();
@@ -233,15 +233,13 @@ public abstract class InboxController {
         @Override
         public void processBatch(UUID nodeId, QueryBatchMessage msg) {
             assert inboxList.size() == totalInboxes;
-            int idx = currentInbox++ % totalInboxes;
-            if (msg.last()) {
-                QueryBatchMessage emptyMessage = msg.cloneWithNoRows();
-                for (int i = 0; i < totalInboxes; i++) {
-                    if (i == idx) process(inboxList.get(i), nodeId, msg);
-                    else process(inboxList.get(i), nodeId, emptyMessage);
-                }
-            } else
-                process(inboxList.get(idx), nodeId, msg);
+            currentInbox = ++currentInbox % totalInboxes;
+            QueryBatchMessage emptyMessage = msg.cloneWithNoRows();
+
+            for (int i = 0; i < totalInboxes; i++) {
+                if (i == currentInbox) process(inboxList.get(i), nodeId, msg);
+                else process(inboxList.get(i), nodeId, emptyMessage);
+            }
         }
 
         private void process(Inbox<?> inbox, UUID nodeId, QueryBatchMessage msg) {

@@ -461,6 +461,9 @@ public class Inbox<Row> extends AbstractNode<Row> implements Mailbox<Row>, Singl
 
             lastEnqueued = batch.batchId;
 
+            // The Splitter inbox controller can pass messages with no rows. This prevents errors from that.
+            if (!batch.last && batch.rows.size() == 0) return pollBatch();
+
             return batch;
         }
 
