@@ -21,6 +21,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectTransient;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
@@ -117,6 +118,10 @@ public class QueryBatchMessage implements MarshalableMessage, ExecutionContextAw
      */
     public List<Object> rows() {
         return rows;
+    }
+
+    public QueryBatchMessage cloneWithNoRows() {
+        return new QueryBatchMessage(qryId, outboxFragmentId, exchangeId, batchId, last, F.asList(), null);
     }
 
     /** {@inheritDoc} */

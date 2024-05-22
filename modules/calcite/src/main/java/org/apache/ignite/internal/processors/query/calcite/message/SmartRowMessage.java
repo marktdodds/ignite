@@ -165,6 +165,7 @@ public class SmartRowMessage implements ValueMessage {
      * @param rowType The SQL Record row type
      */
     public static int[] marshallableTypeFromRowType(RelDataType rowType) {
+        if (rowType == null) return EMPTY;
         if (!IgniteSystemProperties.getBoolean("MD_SMART_MARSHALLING", false)) return EMPTY;
 
         int[] marshallableType = new int[rowType.getFieldCount()];

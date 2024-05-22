@@ -234,10 +234,21 @@ public abstract class InboxController {
         public void processBatch(UUID nodeId, QueryBatchMessage msg) {
             assert inboxList.size() == totalInboxes;
             int idx = currentInbox++ % totalInboxes;
-            Inbox<?> inbox = inboxList.get(idx);
-            inbox.context().execute(() -> {
-                inbox.onBatchReceived(nodeId, msg.outboxFragmentId(), msg.batchId(), msg.last(), Commons.cast(msg.rows()));
-            }, inbox::onError);
+            if (msg.last()) {
+                QueryBatchMessage emptyMessage = msg.cloneWithNoRows();
+                for (int i = 0; i < totalInboxes; i++) {
+                    if (i == idx) process(inboxList.get(i), nodeId, msg);
+                    else process(inboxList.get(i), nodeId, emptyMessage);
+                }
+            } else
+                process(inboxList.get(idx), nodeId, msg);
+        }
+
+        private void process(Inbox<?> inbox, UUID nodeId, QueryBatchMessage msg) {
+            inbox.context().execute(
+                () -> inbox.onBatchReceived(nodeId, msg.outboxFragmentId(), msg.batchId(), msg.last(), Commons.cast(msg.rows())),
+                inbox::onError
+            );
         }
 
     }
