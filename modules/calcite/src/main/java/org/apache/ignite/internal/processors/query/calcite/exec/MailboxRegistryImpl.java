@@ -141,9 +141,9 @@ public class MailboxRegistryImpl extends AbstractService implements MailboxRegis
             if (current != null && current.initialized()) return current;
             switch (type) {
                 case SPLITTER:
-                    throw new UnsupportedOperationException();
+                    return current == null ? new InboxController.SplitterController(totalVariants) : new InboxController.SplitterController(current, totalVariants);
                 case DUPLICATOR:
-                    return current == null ? new InboxController.DuplicatorController(totalVariants) : new InboxController.DuplicatorController(current, totalVariants);
+                return current == null ? new InboxController.DuplicatorController(totalVariants) : new InboxController.DuplicatorController(current, totalVariants);
                 default:
                     throw new InvalidParameterException();
             }

@@ -5,6 +5,7 @@ import org.apache.ignite.internal.processors.query.calcite.message.QueryBatchMes
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
@@ -82,7 +83,7 @@ public abstract class InboxController {
      * Add a sub-inbox to the controller if it does not already have a mapping to the fragmentId
      *
      * @param inboxFragmentId Fragment to map too. This should be unique to the inbox instance
-     * @param inbox      Inbox to add
+     * @param inbox           Inbox to add
      * @returns The inbox that was mapped to fragmentId, or null if there was none. Similar to {@link java.util.Map#putIfAbsent}
      */
     @Nullable Inbox<?> addIfAbsent(long inboxFragmentId, Inbox<?> inbox) {
@@ -187,6 +188,56 @@ public abstract class InboxController {
                 inbox.context().execute(() -> {
                     inbox.onBatchReceived(nodeId, msg.outboxFragmentId(), msg.batchId(), msg.last(), Commons.cast(msg.rows()));
                 }, inbox::onError);
+        }
+
+    }
+
+    static class SplitterController extends InboxController {
+
+        private int currentInbox = 0;
+        private int totalInboxes;
+
+        private final ArrayList<Inbox<?>> inboxList = new ArrayList<>();
+
+        SplitterController(int requiredInboxes) {
+            super(requiredInboxes);
+            init(requiredInboxes);
+        }
+
+        SplitterController(InboxController partial, int requiredInboxes) {
+            super(partial);
+            init(requiredInboxes);
+        }
+
+        private void init(int requiredInboxes) {
+            inboxesRemaining.init(requiredInboxes);
+            controllerInitialized.countDown();
+            totalInboxes = requiredInboxes;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        @Nullable Inbox<?> addIfAbsent(long inboxFragmentId, Inbox<?> inbox) {
+            Inbox<?> alreadyRegistered = super.addIfAbsent(inboxFragmentId, inbox);
+            if (alreadyRegistered == null) inboxList.add(inbox);
+            return alreadyRegistered;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        boolean ready() {
+            return inboxesRemaining.getCount() == 0 && controllerInitialized.getCount() == 0;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void processBatch(UUID nodeId, QueryBatchMessage msg) {
+            assert inboxList.size() == totalInboxes;
+            int idx = currentInbox++ % totalInboxes;
+            Inbox<?> inbox = inboxList.get(idx);
+            inbox.context().execute(() -> {
+                inbox.onBatchReceived(nodeId, msg.outboxFragmentId(), msg.batchId(), msg.last(), Commons.cast(msg.rows()));
+            }, inbox::onError);
         }
 
     }
