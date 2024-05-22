@@ -24,13 +24,23 @@ import org.apache.ignite.internal.processors.query.calcite.exec.InboxController.
 import org.apache.ignite.internal.processors.query.calcite.exec.partition.PartitionNode;
 import org.apache.ignite.internal.processors.query.calcite.metadata.ColocationGroup;
 import org.apache.ignite.internal.processors.query.calcite.metadata.FragmentMapping;
+import org.apache.ignite.internal.processors.query.calcite.rel.AbstractIgniteJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCorrelatedNestedLoopJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteFilter;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashIndexSpool;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteHashJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteIndexScan;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteMergeJoin;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteNestedLoopJoin;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteProject;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteReceiver;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteRel;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSender;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSort;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteSortedIndexSpool;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTableScan;
+import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteColocatedHashAggregate;
+import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.util.Commons;
 import org.apache.ignite.internal.util.typedef.F;
@@ -247,9 +257,7 @@ public class ExecutionPlan {
             return rel.clone(type);
         }
 
-        /** {@inheritDoc} */
-        @Override
-        public IgniteRel visit(IgniteNestedLoopJoin rel) {
+        public IgniteRel visitJoin(AbstractIgniteJoin rel) {
             IgniteRel left = new MultiThreadingReplacer(SourceControlType.DUPLICATOR).go((IgniteRel) rel.getLeft());
             if (left == null) return null;
             IgniteRel right = ((IgniteRel) rel.getRight()).accept(this);
@@ -259,7 +267,67 @@ public class ExecutionPlan {
 
         /** {@inheritDoc} */
         @Override
+        public IgniteRel visit(IgniteNestedLoopJoin rel) {
+            return visitJoin(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteHashJoin rel) {
+            return visitJoin(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteMergeJoin rel) {
+            return visitJoin(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteCorrelatedNestedLoopJoin rel) {
+            return visitJoin(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
         public IgniteRel visit(IgniteSort rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteHashIndexSpool rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteSortedIndexSpool rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteMapHashAggregate rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteColocatedHashAggregate rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteProject rel) {
+            return isAllowed(rel);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public IgniteRel visit(IgniteFilter rel) {
             return isAllowed(rel);
         }
 
