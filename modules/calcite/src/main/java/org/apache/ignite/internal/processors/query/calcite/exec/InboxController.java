@@ -7,8 +7,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -197,7 +199,7 @@ public abstract class InboxController {
         private int currentInbox = -1;
         private int totalInboxes;
 
-        private final ArrayList<Inbox<?>> inboxList = new ArrayList<>();
+        private final List<Inbox<?>> inboxList = new ArrayList<>();
 
         SplitterController(int requiredInboxes) {
             super(requiredInboxes);
@@ -210,7 +212,8 @@ public abstract class InboxController {
         }
 
         private void init(int requiredInboxes) {
-            inboxesRemaining.init(requiredInboxes);
+            // Register twice, once in the hashmap and once in the inboxList array
+            inboxesRemaining.init(2 * requiredInboxes);
             controllerInitialized.countDown();
             totalInboxes = requiredInboxes;
         }
@@ -219,7 +222,8 @@ public abstract class InboxController {
         @Override
         @Nullable Inbox<?> addIfAbsent(long inboxFragmentId, Inbox<?> inbox) {
             Inbox<?> alreadyRegistered = super.addIfAbsent(inboxFragmentId, inbox);
-            if (alreadyRegistered == null) inboxList.add(inbox);
+            if (alreadyRegistered == null) synchronized (inboxList) { inboxList.add(inbox); }
+            inboxesRemaining.countDown();
             return alreadyRegistered;
         }
 
