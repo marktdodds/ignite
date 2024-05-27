@@ -597,7 +597,7 @@ public class ExecutionServiceImpl<Row> extends AbstractService implements Execut
 
         MappingQueryContext mapCtx = Commons.mapContext(locNodeId, topologyVersion(), qry.context(), qryParams);
 
-        ExecutionPlan execPlan = plan.init(mappingSvc, partSvc, mapCtx).makeMultiThreaded();
+        ExecutionPlan execPlan = plan.init(mappingSvc, partSvc, mapCtx).makeMultiThreaded(mapCtx);
 
         List<Fragment> fragments = execPlan.fragments();
 

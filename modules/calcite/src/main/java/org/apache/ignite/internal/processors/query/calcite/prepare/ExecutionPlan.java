@@ -143,7 +143,7 @@ public class ExecutionPlan {
      *
      * @return A multithreaded plan, or the original plan if disabled.
      */
-    public ExecutionPlan makeMultiThreaded() {
+    public ExecutionPlan makeMultiThreaded(MappingQueryContext mapCtx) {
         if (!ENABLED || THREADING_COUNT == 1) return this;
         List<Fragment> newFrags = new ArrayList<>();
         Map<Long, List<IgniteReceiver>> receivers = new HashMap<>();
@@ -189,7 +189,7 @@ public class ExecutionPlan {
             receivers.getOrDefault(exchangeId, Collections.emptyList()).forEach(r -> r.addSenderFragmentId(frag.fragmentId()));
         });
 
-        return copyWith(newFrags.stream().map(Fragment::redoSerialization).collect(Collectors.toList()));
+        return copyWith(newFrags.stream().map(f -> f.attach(mapCtx.cluster()).redoSerialization()).collect(Collectors.toList()));
     }
 
     /**
