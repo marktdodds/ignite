@@ -144,15 +144,15 @@ public class ExecutionPlan {
      * @return A multithreaded plan, or the original plan if disabled.
      */
     public ExecutionPlan makeMultiThreaded(MappingQueryContext mapCtx) {
-        if (!ENABLED || THREADING_COUNT == 1) return this;
+        if (!ENABLED || THREADING_COUNT == 1 || fragments().size() <= 1) return this;
         List<Fragment> newFrags = new ArrayList<>();
         Map<Long, List<IgniteReceiver>> receivers = new HashMap<>();
 
         for (Fragment original : fragments()) {
             List<Fragment> updatedFragments = new LinkedList<>();
             if (original.rootFragment()) {
-                // Don't mess with the root fragment... for now...
-                updatedFragments.add(original);
+                // We still need to clone the root fragment in case we change the receivers later
+                updatedFragments.add(new Cloner(original.root().getCluster()).go(original));
             } else {
                 // Should be working with a Sender.
                 assert original.root() instanceof IgniteSender;
@@ -162,7 +162,8 @@ public class ExecutionPlan {
 
                     IgniteRel multiThreadedRel = new MultiThreadingReplacer(SourceControlType.SPLITTER).go(original.root());
                     if (multiThreadedRel == null) {
-                        updatedFragments = F.asList(original);
+                        // We still need to clone the fragment in case we change the receivers later
+                        updatedFragments = F.asList(new Cloner(original.root().getCluster()).go(original));
                         break;
                     }
 
@@ -382,26 +383,4 @@ public class ExecutionPlan {
         }
     }
 
-    public static class MultiThreadingConfig {
-
-        int nextThreadId = 0;
-        final int maxThreadCount;
-
-        public MultiThreadingConfig(int maxThreadCount) {
-            this.maxThreadCount = maxThreadCount;
-        }
-
-        public MultiThreadingConfig copy() {
-            return new MultiThreadingConfig(maxThreadCount);
-        }
-
-        public int getNextThreadId() {
-            assert nextThreadId < maxThreadCount;
-            return nextThreadId++;
-        }
-
-        public int maxThreadCount() {
-            return maxThreadCount;
-        }
-    }
 }

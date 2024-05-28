@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.calcite.rel;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import org.apache.calcite.plan.RelOptCluster;
@@ -110,7 +111,7 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
 
     /** {@inheritDoc} */
     @Override public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new IgniteReceiver(getCluster(), traitSet, rowType, exchangeId, senderFragmentIds, collation, controlType);
+        return new IgniteReceiver(getCluster(), traitSet, rowType, exchangeId, new LinkedList<>(senderFragmentIds), collation, controlType);
     }
 
     /** {@inheritDoc} */
@@ -149,14 +150,14 @@ public class IgniteReceiver extends AbstractRelNode implements IgniteRel {
 
     /** {@inheritDoc} */
     @Override public IgniteRel clone(RelOptCluster cluster, List<IgniteRel> inputs) {
-        return new IgniteReceiver(cluster, getTraitSet(), rowType, exchangeId, senderFragmentIds, collation, controlType);
+        return new IgniteReceiver(cluster, getTraitSet(), rowType, exchangeId, new LinkedList<>(senderFragmentIds), collation, controlType);
     }
 
     /**
      * Clones the receiver under a new control type
      */
     public IgniteReceiver clone(InboxController.SourceControlType controlType) {
-        return new IgniteReceiver(getCluster(), getTraitSet(), rowType, exchangeId, senderFragmentIds, collation, controlType);
+        return new IgniteReceiver(getCluster(), getTraitSet(), rowType, exchangeId, new LinkedList<>(senderFragmentIds), collation, controlType);
     }
 
     /** */
