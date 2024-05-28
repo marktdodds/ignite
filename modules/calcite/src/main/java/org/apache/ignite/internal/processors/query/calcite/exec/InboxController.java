@@ -69,7 +69,6 @@ public abstract class InboxController {
      * @return true if there are no more inboxes, false otherwise
      */
     public boolean unregister(long fragmentId) {
-        assert ready();
         inboxes.remove(fragmentId);
         return inboxes.size() == 0;
     }
