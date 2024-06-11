@@ -109,6 +109,14 @@ public abstract class InboxController {
         inboxes.values().forEach(inbox -> inbox.context().execute(inbox::close, inbox::onError));
     }
 
+
+    /**
+     * Throws an exception in the context of each inbox.
+     */
+    void error(Exception e) {
+        inboxes.values().forEach(inbox -> inbox.context().execute(() -> { throw e; }, inbox::onError));
+    }
+
     /**
      * Returns a boolean indicating the ready status, possibly waiting up to the specified {@code 2*timeout}
      * ({@code 1*timeout} for the inboxes to be ready and {@code 1*timeout} for the controller to initialize)
@@ -221,7 +229,9 @@ public abstract class InboxController {
         @Override
         @Nullable Inbox<?> addIfAbsent(long inboxFragmentId, Inbox<?> inbox) {
             Inbox<?> alreadyRegistered = super.addIfAbsent(inboxFragmentId, inbox);
-            if (alreadyRegistered == null) synchronized (inboxList) { inboxList.add(inbox); }
+            if (alreadyRegistered == null) synchronized (inboxList) {
+                inboxList.add(inbox);
+            }
             inboxesRemaining.countDown();
             return alreadyRegistered;
         }

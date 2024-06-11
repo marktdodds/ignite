@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.query.calcite.CalciteQueryProcessor;
 import org.apache.ignite.internal.processors.query.calcite.Query;
@@ -53,7 +54,7 @@ import org.apache.ignite.internal.util.typedef.F;
  */
 public class ExchangeServiceImpl extends AbstractService implements ExchangeService {
     /** */
-    public static final long INBOX_INITIALIZATION_TIMEOUT = 1_000L;
+    public static final long INBOX_INITIALIZATION_TIMEOUT = 10_000L;
 
     /** */
     private final UUID locaNodeId;
@@ -292,21 +293,6 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
         if (inboxCtl == null && msg.batchId() == 0) {
             // first message sent before a fragment is built
             inboxCtl = mailboxRegistry().getOrTemporaryController(msg.queryId(), msg.exchangeId());
-
-            // New inbox for query batch message can be registered in the following cases:
-            // 1. Race between messages (when first batch arrived to node before query start request). In this case
-            // query start request eventually will be delivered and query execution context will be initialized.
-            // Inbox will be closed by standard query execution workflow.
-            // 2. Stale first message (query already has been closed by some event). In this case query execution
-            // workflow already completed and inbox can leak. To prevent leakage, schedule task to check that
-            // query context is initialized within reasonable time (assume that race between messages can't be more
-            // than INBOX_INITIALIZATION_TIMEOUT milliseconds).
-            timeoutService().schedule(() -> {
-                InboxController ctl = mailboxRegistry().inboxController(msg.queryId(), msg.exchangeId());
-                // InboxController is still not initialized.
-                if (ctl != null && !ctl.initialized())
-                    ctl.close();
-            }, INBOX_INITIALIZATION_TIMEOUT);
         }
 
         if (inboxCtl == null) {
@@ -324,6 +310,16 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
         if (inboxCtl.ready()) {
             processBatch(inboxCtl, nodeId, msg);
         } else new Thread(() -> {
+
+            // New inbox for query batch message can be registered in the following cases:
+            // 1. Race between messages (when first batch arrived to node before query start request). In this case
+            // query start request eventually will be delivered and query execution context will be initialized.
+            // Inbox will be closed by standard query execution workflow.
+            // 2. Stale first message (query already has been closed by some event). In this case query execution
+            // workflow already completed and inbox can leak. To prevent leakage, schedule task to check that
+            // query context is initialized within reasonable time (assume that race between messages can't be more
+            // than INBOX_INITIALIZATION_TIMEOUT milliseconds).
+
             // We wait in our own thread so we don't block the initialization if it happens on the same thread (or other incoming messages)
             InboxController controller = mailboxRegistry().inboxController(msg.queryId(), msg.exchangeId());
             assert controller != null;
@@ -350,7 +346,10 @@ public class ExchangeServiceImpl extends AbstractService implements ExchangeServ
                 "exchangeId=" + msg.exchangeId() + ", " +
                 "batchId=" + msg.batchId() + "]");
 
-            controller.close();
+            if (controller != null) {
+                controller.error(new QueryCancelledException("Inbox failed to initialize!"));
+                controller.close();
+            }
 
         }).start();
     }
