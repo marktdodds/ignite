@@ -82,7 +82,7 @@ public class IgniteExchange extends Exchange implements IgniteRel {
         IgniteCostFactory costFactory = (IgniteCostFactory)planner.getCostFactory();
 
         // If its not single we are sending to at 2+ nodes so apply the penalty
-        if (!distribution.equals(IgniteDistributions.single()) && !IgniteSystemProperties.getBoolean("MD_DISABLE_BROADCAST_PENALTY", false)) {
+        if (RelDistribution.Type.BROADCAST_DISTRIBUTED.equals(distribution().getType()) && !IgniteSystemProperties.getBoolean("MD_DISABLE_BROADCAST_PENALTY", false)) {
             networkCost *= IgniteCost.BROADCAST_DISTRIBUTION_PENALTY;
         }
 
