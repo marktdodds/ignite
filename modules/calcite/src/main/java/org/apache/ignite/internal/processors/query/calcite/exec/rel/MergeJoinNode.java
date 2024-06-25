@@ -218,8 +218,8 @@ public abstract class MergeJoinNode<Row> extends AbstractNode<Row> {
     protected void checkJoinFinished() throws Exception {
         if (!distributed || (waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING)) {
             requested = 0;
-            leftInBuf = null;
-            rightInBuf = null;
+            leftInBuf.clear();
+            rightInBuf.clear();
             downstream().end();
         }
     }
