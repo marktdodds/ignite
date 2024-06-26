@@ -95,6 +95,11 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
         join();
     }
 
+    protected void joinComplete() throws Exception {
+        requested = 0;
+        if (!preemptivelyEnded) downstream().end();
+    }
+
     /** {@inheritDoc} */
     @Override protected void rewindInternal() {
         requested = 0;
@@ -156,8 +161,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         leftInBuf.add(row);
 
-        if (waitingLeft == 0)
-            join();
+        join();
     }
 
     /** */
@@ -189,6 +193,8 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
         join();
     }
 
+    private boolean preemptivelyEnded = false;
+
     /** */
     private void endRight() throws Exception {
         assert downstream() != null;
@@ -197,6 +203,29 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
         checkState();
 
         waitingRight = NOT_WAITING;
+
+        /**
+         * This is an ugly fix to stop a deadlock. In a some cases we have a distributed computation like this:
+         *     Root
+         *      /\
+         *     /  \
+         *  Left  Right
+         *    \    /
+         *     \  /
+         *    Source
+         *
+         * Where left/right are in different fragments but both rely on an affinity distributed source. If left reaches
+         * its batches limit before right sends a batch, root will stop left from sending, so left blocks source from sending,
+         * which blocks source sending to right, which blocks right from creating the batch needed to unlock root.
+         * The common case for this is when doing a distributed join on asymmetric relations, one of the input relations could have
+         * an empty partition at 1 site, causing the deadlock. Ending the stream pre-emptively unlocks the root and allows it
+         * to request only from the left. But we also have to keep polling the sources to prevent deadlocks further below.
+         * Like I said, ugly, but in most cases it works.
+         */
+        if (rightMaterialized.size() == 0) {
+            preemptivelyEnded = true;
+            downstream().end();
+        }
 
         join();
     }
@@ -277,7 +306,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
         /** */
         @Override protected void join() throws Exception {
-            timer.counterSub(System.currentTimeMillis());
+
             if (waitingRight == NOT_WAITING) {
                 inLoop = true;
                 try {
@@ -294,7 +323,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
                             requested--;
                             Row row = handler.concat(left, rightMaterialized.get(rightIdx - 1));
                             downstream().push(row);
-                            debug.counterInc();
+
                         }
 
                         if (rightIdx == rightMaterialized.size()) {
@@ -314,12 +343,9 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
             if (waitingLeft == 0 && leftInBuf.isEmpty())
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
-            timer.counterAdd(System.currentTimeMillis());
-            if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
-                requested = 0;
-                downstream().end();
-                debug.logCounter("NLJ PR: ", System.out);
-                timer.logCounter("NLJ PT: ", System.out);
+            if (requested > 0 && waitingRight == NOT_WAITING && waitingLeft == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
+                joinComplete();
+                InternalDebug.log("NLJ Completed");
             }
         }
     }
@@ -416,8 +442,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinComplete();
             }
         }
     }
@@ -542,8 +567,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null
                 && leftInBuf.isEmpty() && rightNotMatchedIndexes.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinComplete();
             }
         }
     }
@@ -692,8 +716,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null
                 && leftInBuf.isEmpty() && rightNotMatchedIndexes.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinComplete();
             }
         }
     }
@@ -758,8 +781,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null
                 && leftInBuf.isEmpty()) {
-                downstream().end();
-                requested = 0;
+                joinComplete();
             }
         }
     }
@@ -827,8 +849,7 @@ public abstract class NestedLoopJoinNode<Row> extends MemoryTrackingNode<Row> {
                 leftSource().request(waitingLeft = IN_BUFFER_SIZE);
 
             if (requested > 0 && waitingLeft == NOT_WAITING && waitingRight == NOT_WAITING && left == null && leftInBuf.isEmpty()) {
-                requested = 0;
-                downstream().end();
+                joinComplete();
             }
         }
     }
