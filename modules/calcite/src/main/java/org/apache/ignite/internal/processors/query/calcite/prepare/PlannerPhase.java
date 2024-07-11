@@ -54,6 +54,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.HashAggregateCon
 import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexCountRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexMinMaxRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.JoinExpressionSimplifierRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.MakeHashJoinCachableRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.MergeJoinConverterRule;
@@ -367,7 +368,9 @@ public enum PlannerPhase {
                     ((RelRule<?>) PruneEmptyRules.SORT_FETCH_ZERO_INSTANCE).config
                         .withOperandSupplier(b ->
                             b.operand(LogicalSort.class).anyInputs())
-                        .toRule()
+                        .toRule(),
+
+                    JoinExpressionSimplifierRule.INSTANCE
                 )
             );
         }
